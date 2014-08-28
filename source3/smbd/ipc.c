@@ -553,6 +553,7 @@ static void named_pipe(connection_struct *conn, uint64_t vuid,
 	    strequal(name,"SRVSVC") ||
 	    strequal(name,"WINREG") ||
 	    strequal(name,"SAMR") ||
+	    strequal(name, "MsFteWds") ||
 	    strequal(name,"LSARPC")) {
 
 		DEBUG(4,("named pipe command from Win95 (wow!)\n"));
