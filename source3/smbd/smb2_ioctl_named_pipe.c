@@ -33,6 +33,69 @@
 static void smbd_smb2_ioctl_pipe_write_done(struct tevent_req *subreq);
 static void smbd_smb2_ioctl_pipe_read_done(struct tevent_req *subreq);
 
+struct pipe_wait_req_data
+{
+	int64_t timeout;
+	uint32_t name_len;
+	uint8_t timeout_specified;
+	char* pipe_name;
+};
+
+static bool read_pipe_wait_request_data(TALLOC_CTX * ctx,
+					struct pipe_wait_req_data *wait_request,
+					DATA_BLOB *input)
+{
+	uint8_t *buf = input->data;
+	uint32_t pos = 0;
+	/* lenght of data up to pipe name */
+	uint32_t min_len = 14;
+	bool result = false;
+
+	if (input->length < min_len) {
+		result = false;
+		goto out;
+	}
+
+	wait_request->timeout = BVALS(buf, pos);
+	pos += 8;
+
+	wait_request->name_len = IVAL(buf, pos);
+	pos +=4;
+
+	if (min_len + wait_request->name_len > input->length) {
+		DEBUG(0,("incorrect buffer len, buffer size is %zu but we require %d\n", input->length, min_len + wait_request->name_len));
+		result =false;
+		goto out;
+	}
+
+	wait_request->timeout_specified = *(buf + pos);
+	pos++;
+
+	pos++; /* skip padding */
+
+	wait_request->pipe_name = talloc_array(ctx, char, wait_request->name_len/2 + 1);
+	pull_string(wait_request->pipe_name, (buf + pos),
+		    wait_request->name_len/2 + 1, wait_request->name_len,
+		    STR_UNICODE | STR_NOALIGN);
+	result = true;
+out:
+	return result;
+}
+
+static bool can_handle_wait(DATA_BLOB *input)
+{
+	TALLOC_CTX * ctx = talloc_init(NULL);
+	struct pipe_wait_req_data req_data;
+	bool result = false;
+	ZERO_STRUCT(req_data);
+
+	if (read_pipe_wait_request_data(ctx, &req_data, input)) {
+		result = strequal(req_data.pipe_name, "MsFteWds");
+	}
+	TALLOC_FREE(ctx);
+	return result;
+}
+
 struct tevent_req *smb2_ioctl_named_pipe(uint32_t ctl_code,
 					 struct tevent_context *ev,
 					 struct tevent_req *req,
@@ -42,7 +105,13 @@ struct tevent_req *smb2_ioctl_named_pipe(uint32_t ctl_code,
 	uint8_t *out_data = NULL;
 	uint32_t out_data_len = 0;
 
-	if (ctl_code == FSCTL_PIPE_TRANSCEIVE) {
+	if (ctl_code == FSCTL_PIPE_WAIT) {
+		if (can_handle_wait(&state->in_input)) {
+			DEBUG(0,("should be returning STATUS_OK for PIPE_WAIT\n"));
+			tevent_req_done(req);
+			return tevent_req_post(req, ev);
+		}
+	} else if (ctl_code == FSCTL_PIPE_TRANSCEIVE) {
 		struct tevent_req *subreq;
 
 		if (!IS_IPC(state->smbreq->conn)) {
