@@ -26,12 +26,49 @@
 #include "rpc_server/srv_pipe_hnd.h"
 #include "include/ntioctl.h"
 #include "smb2_ioctl_private.h"
+#include "librpc/gen_ndr/ndr_ioctl.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_SMB2
 
 static void smbd_smb2_ioctl_pipe_write_done(struct tevent_req *subreq);
 static void smbd_smb2_ioctl_pipe_read_done(struct tevent_req *subreq);
+
+struct pipe_wait_req_data
+{
+	int64_t timeout;
+	uint32_t name_len;
+	uint8_t timeout_specified;
+	char* pipe_name;
+};
+
+static bool read_pipe_wait_request_data(TALLOC_CTX * ctx,
+					struct fsctl_pipe_wait *wait_request,
+					DATA_BLOB *input)
+{
+	enum ndr_err_code err;
+	err = ndr_pull_struct_blob(input,
+			ctx, wait_request,
+			(ndr_pull_flags_fn_t)ndr_pull_fsctl_pipe_wait);
+	if (!NDR_ERR_CODE_IS_SUCCESS(err)) {
+		return false;
+	}
+	return true;
+}
+
+static bool can_handle_wait(DATA_BLOB *input)
+{
+	TALLOC_CTX * ctx = talloc_init(NULL);
+	struct fsctl_pipe_wait req_data;
+	bool result = false;
+	ZERO_STRUCT(req_data);
+
+	if (read_pipe_wait_request_data(ctx, &req_data, input)) {
+		result = strequal(req_data.pipe_name, "MsFteWds");
+	}
+	TALLOC_FREE(ctx);
+	return result;
+}
 
 struct tevent_req *smb2_ioctl_named_pipe(uint32_t ctl_code,
 					 struct tevent_context *ev,
@@ -42,7 +79,13 @@ struct tevent_req *smb2_ioctl_named_pipe(uint32_t ctl_code,
 	uint8_t *out_data = NULL;
 	uint32_t out_data_len = 0;
 
-	if (ctl_code == FSCTL_PIPE_TRANSCEIVE) {
+	if (ctl_code == FSCTL_PIPE_WAIT) {
+		if (can_handle_wait(&state->in_input)) {
+			DEBUG(0,("should be returning STATUS_OK for PIPE_WAIT\n"));
+			tevent_req_done(req);
+			return tevent_req_post(req, ev);
+		}
+	} else if (ctl_code == FSCTL_PIPE_TRANSCEIVE) {
 		struct tevent_req *subreq;
 
 		if (!IS_IPC(state->smbreq->conn)) {
