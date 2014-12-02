@@ -404,16 +404,38 @@ sub can_contain_deferred($)
 
 	return 0 if (Parse::Pidl::Typelist::is_scalar($type));
 
-	return can_contain_deferred($type->{DATA}) if ($type->{TYPE} eq "TYPEDEF");
+	if ( not defined($type->{INCANCONTAINDERRED})) {
+		$type->{INCANCONTAINDERRED} = 0;
+	}
 
-	return 0 unless defined($type->{ELEMENTS});
+	my $res;
+
+	if ($type->{INCANCONTAINDERRED} == 1 ){
+		$res = 0;
+		goto out_recurse;
+	}
+
+	$type->{INCANCONTAINDERRED} = 1;
+	if ($type->{TYPE} eq "TYPEDEF") {
+		$res = can_contain_deferred($type->{DATA});
+		goto out;
+	}
+
+	if (!defined($type->{ELEMENTS})) {
+		$res = 0;
+		goto out;
+	}
 
 	foreach (@{$type->{ELEMENTS}}) {
-		return 1 if ($_->{POINTERS});
-		return 1 if (can_contain_deferred ($_->{TYPE}));
+		if (($_->{POINTERS}) || can_contain_deferred ($_->{TYPE})) {
+			$res = 1;
+			goto out;
+		}
 	}
-	
-	return 0;
+out:
+	$type->{INCANCONTAINDERRED} = 0;
+out_recurse:
+	return $res;
 }
 
 sub pointer_type($)
@@ -488,23 +510,48 @@ sub align_type($)
 
 	my $dt = getType($e);
 
+	if ( not defined($dt->{INGETALIGNTYPE})) {
+		$dt->{INGETALIGNTYPE} = 0;
+	}
+
+	my $res;
+	if ($dt->{INGETALIGNTYPE} == 1 ){
+		# reset it
+		$res = 0;
+		goto out_recurse;
+	}
+
+	$dt->{INGETALIGNTYPE} = 1;
+
 	if ($dt->{TYPE} eq "TYPEDEF") {
-		return align_type($dt->{DATA});
+		$res = align_type($dt->{DATA});
+		goto out;
 	} elsif ($dt->{TYPE} eq "CONFORMANCE") {
-		return $dt->{DATA}->{ALIGN};
+		$res = $dt->{DATA}->{ALIGN};
+		goto out;
 	} elsif ($dt->{TYPE} eq "ENUM") {
-		return align_type(Parse::Pidl::Typelist::enum_type_fn($dt));
+		$res = align_type(Parse::Pidl::Typelist::enum_type_fn($dt));
+		goto out;
 	} elsif ($dt->{TYPE} eq "BITMAP") {
-		return align_type(Parse::Pidl::Typelist::bitmap_type_fn($dt));
+		$res = align_type(Parse::Pidl::Typelist::bitmap_type_fn($dt));
+		goto out;
 	} elsif (($dt->{TYPE} eq "STRUCT") or ($dt->{TYPE} eq "UNION")) {
 		# Struct/union without body: assume 4
-		return 4 unless (defined($dt->{ELEMENTS}));
-		return find_largest_alignment($dt);
+		$res = 4;
+		if (defined($dt->{ELEMENTS})) {
+			$res = find_largest_alignment($dt);
+		}
+		goto out;
 	} elsif (($dt->{TYPE} eq "PIPE")) {
-		return 5;
+		$res = 5;
+		goto out;
 	}
 
 	die("Unknown data type type $dt->{TYPE}");
+out:
+	$dt->{INGETALIGNTYPE} = 0;
+out_recurse:
+	return $res;
 }
 
 sub ParseElement($$$)
