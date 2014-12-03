@@ -35,7 +35,7 @@ bld.SAMBA_PIDL_LIST('PIDL',
 
 bld.SAMBA_PIDL_LIST('PIDL',
                     '''rap.idl ntprinting.idl preg.idl ioctl.idl printcap.idl
-                       fsrvp_state.idl''',
+                       fsrvp_state.idl wsp_data.idl wsp.idl''',
                     options='--header --ndr-parser',
                     output_dir='../gen_ndr')
 
