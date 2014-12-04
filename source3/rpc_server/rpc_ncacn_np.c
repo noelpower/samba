@@ -85,6 +85,7 @@ NTSTATUS make_internal_rpc_pipe_socketpair(TALLOC_CTX *mem_ctx,
 	NTSTATUS status;
 	int error;
 	int rc;
+	struct name_pipe_server_details *pipe_details = NULL;
 
 	DEBUG(4, ("Create of internal pipe %s requested\n", pipe_name));
 
@@ -94,7 +95,13 @@ NTSTATUS make_internal_rpc_pipe_socketpair(TALLOC_CTX *mem_ctx,
 		goto out;
 	}
 
-	npa->file_type = FILE_TYPE_MESSAGE_MODE_PIPE;
+	pipe_details = get_pipe_server_details(pipe_name);
+
+	if (pipe_details) {
+		npa->file_type = pipe_details->msg_mode;
+	} else {
+		npa->file_type = FILE_TYPE_MESSAGE_MODE_PIPE;
+	}
 	npa->device_state = 0xff | 0x0400 | 0x0100;
 	npa->allocation_size = 4096;
 
@@ -161,14 +168,22 @@ NTSTATUS make_internal_rpc_pipe_socketpair(TALLOC_CTX *mem_ctx,
 		goto out;
 	}
 
-	subreq = dcerpc_read_ncacn_packet_send(npc, npc->ev, npc->tstream);
+	if (pipe_details) {
+		subreq = pipe_details->start_server_loop(npc,
+							 pipe_details->private_data);
+	} else {
+		subreq = dcerpc_read_ncacn_packet_send(npc,
+						       npc->ev,
+						       npc->tstream);
+		if (subreq) {
+			tevent_req_set_callback(subreq, named_pipe_packet_process, npc);
+		}
+	}
 	if (subreq == NULL) {
 		DEBUG(2, ("Failed to start receving packets\n"));
 		status = NT_STATUS_PIPE_BROKEN;
 		goto out;
 	}
-	tevent_req_set_callback(subreq, named_pipe_packet_process, npc);
-
 	*pnpa = talloc_steal(mem_ctx, npa);
 	status = NT_STATUS_OK;
 out:
