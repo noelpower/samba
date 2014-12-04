@@ -236,8 +236,6 @@ bool create_next_pdu(struct pipes_struct *p)
 }
 
 
-static bool pipe_init_outgoing_data(struct pipes_struct *p);
-
 /*******************************************************************
  Marshall a bind_nak pdu.
 *******************************************************************/
@@ -491,7 +489,8 @@ NTSTATUS is_known_pipename(const char *pipename, struct ndr_syntax_id *syntax)
 		return NT_STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
-	if (rpc_srv_get_pipe_interface_by_cli_name(pipename, syntax)) {
+	if (rpc_srv_get_pipe_interface_by_cli_name(pipename, syntax)
+	    || get_pipe_server_details(pipename)) {
 		return NT_STATUS_OK;
 	}
 
@@ -1609,7 +1608,7 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
  Initialise an outgoing packet.
 ****************************************************************************/
 
-static bool pipe_init_outgoing_data(struct pipes_struct *p)
+bool pipe_init_outgoing_data(struct pipes_struct *p)
 {
 	output_data *o_data = &p->out_data;
 

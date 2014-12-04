@@ -37,6 +37,46 @@
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_RPC_SRV
+static struct name_pipe_server_details *pipe_details_map = NULL;
+
+static void init_pipe_details_map(void)
+{
+	if (!pipe_details_map) {
+		pipe_details_map = talloc_zero(NULL, struct name_pipe_server_details);
+	}
+}
+
+struct name_pipe_server_details *get_pipe_server_details(const char* name) {
+	struct name_pipe_server_details *item;
+	init_pipe_details_map();
+	for(item = pipe_details_map; item; item = item->next) {
+		if (strequal(name, item->name)) {
+			return item;
+		}
+	}
+	return NULL;
+}
+
+void add_pipe_server_details(const char* name,  uint16_t msg_mode,
+			     server_loop_fn loop_fn, void *private_data)
+{
+	struct name_pipe_server_details * item = get_pipe_server_details(name);
+	if (item) {
+		/*update*/
+		item->start_server_loop = loop_fn;
+		item->msg_mode = msg_mode;
+		item->private_data = private_data;
+	} else {
+		struct name_pipe_server_details *new_item =
+			talloc_zero(pipe_details_map,
+				    struct name_pipe_server_details);
+		new_item->name = name;
+		new_item->start_server_loop = loop_fn;
+		new_item->msg_mode = msg_mode;
+		new_item->private_data = private_data;
+		DLIST_ADD_END(pipe_details_map, new_item);
+	}
+}
 
 /* Creates a pipes_struct and initializes it with the information
  * sent from the client */
@@ -773,7 +813,11 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 		uint64_t allocation_size = 4096;
 		uint16_t device_state = 0xff | 0x0400 | 0x0100;
 		uint16_t file_type = FILE_TYPE_MESSAGE_MODE_PIPE;
-
+		struct name_pipe_server_details *pipe_details =
+			get_pipe_server_details(name);
+		if (pipe_details) {
+			pipe_details->msg_mode;
+		}
 		subreq = tstream_npa_accept_existing_send(ncacn_conn,
 							  ncacn_conn->ev_ctx,
 							  ncacn_conn->tstream,
@@ -832,6 +876,7 @@ static void dcesrv_ncacn_accept_step2(struct dcerpc_ncacn_conn *ncacn_conn)
 	gid_t gid;
 	int rc;
 	int sys_errno;
+	struct name_pipe_server_details *pipe_details = NULL;
 
 	switch (ncacn_conn->transport) {
 		case NCACN_IP_TCP:
@@ -927,16 +972,26 @@ static void dcesrv_ncacn_accept_step2(struct dcerpc_ncacn_conn *ncacn_conn)
 		return;
 	}
 
-	subreq = dcerpc_read_ncacn_packet_send(ncacn_conn,
+	pipe_details = get_pipe_server_details(pipe_name);
+	if (pipe_details) {
+		subreq = pipe_details->start_server_loop(ncacn_conn,
+						pipe_details->private_data);
+	} else {
+		subreq = dcerpc_read_ncacn_packet_send(ncacn_conn,
 					       ncacn_conn->ev_ctx,
 					       ncacn_conn->tstream);
+		if (subreq) {
+			tevent_req_set_callback(subreq,
+				dcerpc_ncacn_packet_process, ncacn_conn);
+		}
+	}
+
 	if (subreq == NULL) {
 		DEBUG(2, ("Failed to send ncacn packet\n"));
 		talloc_free(ncacn_conn);
 		return;
 	}
 
-	tevent_req_set_callback(subreq, dcerpc_ncacn_packet_process, ncacn_conn);
 
 	DEBUG(10, ("dcerpc_ncacn_accept done\n"));
 

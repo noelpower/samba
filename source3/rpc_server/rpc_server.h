@@ -62,6 +62,8 @@ NTSTATUS dcerpc_ncacn_conn_init(TALLOC_CTX *mem_ctx,
 				void *termination_data,
 				struct dcerpc_ncacn_conn **out);
 
+bool pipe_init_outgoing_data(struct pipes_struct *p);
+
 int make_server_pipes_struct(TALLOC_CTX *mem_ctx,
 			     struct messaging_context *msg_ctx,
 			     const char *pipe_name,
@@ -105,4 +107,16 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 			 void *termination_data);
 void dcerpc_ncacn_packet_process(struct tevent_req *subreq);
 
+typedef struct tevent_req *(*server_loop_fn)(struct dcerpc_ncacn_conn *conn,
+					     void *private_data);
+struct name_pipe_server_details {
+	struct name_pipe_server_details *prev, *next;
+	const char* name;
+	uint16_t msg_mode;
+	server_loop_fn start_server_loop;
+	void *private_data;
+};
+
+void add_pipe_server_details(const char *name, uint16_t msg_mode, server_loop_fn loop, void *private_data);
+struct name_pipe_server_details *get_pipe_server_details(const char* name);
 #endif /* _PRC_SERVER_H_ */
