@@ -757,6 +757,7 @@ bld.SAMBA3_LIBRARY('smbd_base',
                         vfs_acl_common
                         NDR_QUOTA
                         GNUTLS_HELPERS
+                        WSPSVC
                    ''' +
                    bld.env['dmapi_lib'] +
                    bld.env['legacy_quota_libs'] +
@@ -1112,6 +1113,8 @@ bld.SAMBA3_BINARY('smbd/smbd',
                       FSSD
                       MDSSD
                       SPOOLSSD
+                      RAWPIPE
+                      WSPD
                       ''',
                  install_path='${SBINDIR}')
 

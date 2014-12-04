@@ -40,6 +40,7 @@ struct rpc_service_defaults {
 	/* { "samr", "embedded" }, */
 	/* { "netlogon", "embedded" }, */
 	{ "fssagentrpc", "external" },
+	{ "MsFteWds", "external" },
 
 	{ NULL, NULL }
 };
