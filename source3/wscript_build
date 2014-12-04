@@ -642,6 +642,7 @@ bld.SAMBA3_LIBRARY('smbd_base',
                    netapi
                    NDR_IOCTL
                    notifyd
+                   WSPSVC
                    ''' +
                    bld.env['dmapi_lib'] +
                    bld.env['legacy_quota_libs'] +
@@ -880,6 +881,7 @@ bld.SAMBA3_BINARY('smbd/smbd',
                       MDSSD
                       SPOOLSSD
                       RAWPIPE
+                      WSPD
                       ''',
                  install_path='${SBINDIR}')
 
