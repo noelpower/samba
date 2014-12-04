@@ -634,6 +634,7 @@ bld.SAMBA3_LIBRARY('smbd_base',
                    netapi
                    NDR_IOCTL
                    notifyd
+                   WSPSVC
                    ''' +
                    bld.env['dmapi_lib'] +
                    bld.env['legacy_quota_libs'] +
@@ -861,7 +862,7 @@ bld.SAMBA3_SUBSYSTEM('tevent-glib-glue',
 
 bld.SAMBA3_BINARY('smbd/smbd',
                  source='smbd/server.c smbd/smbd_cleanupd.c',
-                 deps='smbd_base EPMD LSASD FSSD MDSSD RAWPIPE',
+                 deps='smbd_base EPMD LSASD FSSD MDSSD RAWPIPE WSPD',
                  install_path='${SBINDIR}')
 
 bld.SAMBA3_BINARY('nmbd/nmbd',
