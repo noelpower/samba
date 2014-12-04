@@ -235,8 +235,6 @@ bool create_next_pdu(struct pipes_struct *p)
 }
 
 
-static bool pipe_init_outgoing_data(struct pipes_struct *p);
-
 /*******************************************************************
  Marshall a bind_nak pdu.
 *******************************************************************/
@@ -1510,7 +1508,7 @@ static bool api_rpcTNP(struct pipes_struct *p, struct ncacn_packet *pkt,
  Initialise an outgoing packet.
 ****************************************************************************/
 
-static bool pipe_init_outgoing_data(struct pipes_struct *p)
+bool pipe_init_outgoing_data(struct pipes_struct *p)
 {
 	output_data *o_data = &p->out_data;
 

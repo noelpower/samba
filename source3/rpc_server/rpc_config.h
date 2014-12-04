@@ -69,4 +69,5 @@ enum rpc_daemon_type_e rpc_daemon_type(const char *name);
 #define rpc_fss_daemon() rpc_daemon_type("fssd")
 #define rpc_mdssd_daemon() rpc_daemon_type("mdssd")
 
+#define rpc_wsp_daemon() rpc_daemon_type("wspd")
 #endif /* _RPC_CONFIG_H */

@@ -1,7 +1,9 @@
 /*
  *  Unix SMB/CIFS implementation.
- *  RPC Pipe client / server routines
- *  Almost completely rewritten by (C) Jeremy Allison 2005 - 2010
+ *
+ *  Window Search Service
+ *
+ *  Copyright (c)  2016 Noel Power
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,18 +19,11 @@
  *  along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _RPC_SERVER_SRV_PIPE_H_
-#define _RPC_SERVER_SRV_PIPE_H_
+#ifndef __WSP_SRV_TRACKER_ABS_IF__
+#define __WSP_SRV_TRACKER_ABS_IF__
+#include "bin/default/librpc/gen_ndr/ndr_wsp.h"
 
-struct ncacn_packet;
-struct pipes_struct;
+struct wsp_abstract_interface;
 
-/* The following definitions come from rpc_server/srv_pipe.c  */
-
-bool create_next_pdu(struct pipes_struct *p);
-bool api_pipe_bind_auth3(struct pipes_struct *p, struct ncacn_packet *pkt);
-bool setup_fault_pdu(struct pipes_struct *p, NTSTATUS status);
-bool is_known_pipename(const char *cli_filename, struct ndr_syntax_id *syntax);
-bool pipe_init_outgoing_data(struct pipes_struct *p);
-
-#endif /* _RPC_SERVER_SRV_PIPE_H_ */
+struct wsp_abstract_interface *tracker_wsp_abs_interace(void);
+#endif
