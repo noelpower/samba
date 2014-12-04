@@ -72,4 +72,5 @@ enum rpc_daemon_type_e rpc_daemon_type(const char *name);
 #define rpc_rawd_daemon() rpc_daemon_type("rawd")
 #endif
 
+#define rpc_wsp_daemon() rpc_daemon_type("wspd")
 #endif /* _RPC_CONFIG_H */
