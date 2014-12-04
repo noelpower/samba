@@ -34,6 +34,47 @@
 #include "rpc_server/srv_pipe_hnd.h"
 #include "rpc_server/srv_pipe.h"
 
+static struct name_pipe_server_details *pipe_details_map = NULL;
+
+static void init_pipe_details_map(void)
+{
+	if (!pipe_details_map) {
+		pipe_details_map = talloc_zero(NULL, struct name_pipe_server_details);
+	}
+}
+
+struct name_pipe_server_details *get_pipe_server_details(const char* name) {
+	struct name_pipe_server_details *item;
+	init_pipe_details_map();
+	for(item = pipe_details_map; item; item = item->next) {
+		if (strequal(name, item->name)) {
+			return item;
+		}
+	}
+	return NULL;
+}
+
+void add_pipe_server_details(const char* name,  uint16_t msg_mode,
+			     server_loop_fn loop_fn, void *private_data)
+{
+	struct name_pipe_server_details * item = get_pipe_server_details(name);
+	if (item) {
+		/*update*/
+		item->start_server_loop = loop_fn;
+		item->msg_mode = msg_mode;
+		item->private_data = private_data;
+	} else {
+		struct name_pipe_server_details *new_item =
+			talloc_zero(pipe_details_map,
+				    struct name_pipe_server_details);
+		new_item->name = name;
+		new_item->start_server_loop = loop_fn;
+		new_item->msg_mode = msg_mode;
+		new_item->private_data = private_data;
+		DLIST_ADD_END(pipe_details_map, new_item);
+	}
+}
+
 /* Creates a pipes_struct and initializes it with the information
  * sent from the client */
 int make_server_pipes_struct(TALLOC_CTX *mem_ctx,
@@ -292,6 +333,8 @@ void named_pipe_accept_function(struct tevent_context *ev_ctx,
 	struct tstream_context *plain;
 	struct tevent_req *subreq;
 	int ret;
+	struct name_pipe_server_details *pipe_details =
+				get_pipe_server_details(pipe_name);
 
 	npc = named_pipe_client_init(
 		ev_ctx,
@@ -326,6 +369,14 @@ void named_pipe_accept_function(struct tevent_context *ev_ctx,
 		return;
 	}
 
+	if (pipe_details) {
+		npc->file_type = pipe_details->msg_mode;
+	} else {
+		npc->file_type = FILE_TYPE_MESSAGE_MODE_PIPE;
+	}
+	npc->device_state = 0xff | 0x0400 | 0x0100;
+	npc->allocation_size = 4096;
+
 	subreq = tstream_npa_accept_existing_send(npc, npc->ev, plain,
 						  npc->file_type,
 						  npc->device_state,
@@ -339,13 +390,12 @@ void named_pipe_accept_function(struct tevent_context *ev_ctx,
 	tevent_req_set_callback(subreq, named_pipe_accept_done, npc);
 }
 
-static void named_pipe_packet_done(struct tevent_req *subreq);
-
 static void named_pipe_accept_done(struct tevent_req *subreq)
 {
 	struct auth_session_info_transport *session_info_transport;
 	struct named_pipe_client *npc =
 		tevent_req_callback_data(subreq, struct named_pipe_client);
+	struct name_pipe_server_details *pipe_details = NULL;
 	int error;
 	int ret;
 
@@ -388,12 +438,26 @@ static void named_pipe_accept_done(struct tevent_req *subreq)
 	}
 
 	/* And now start receiving and processing packets */
-	subreq = dcerpc_read_ncacn_packet_send(npc, npc->ev, npc->tstream);
+
+	pipe_details = get_pipe_server_details(npc->pipe_name);
+	/* has the named pipe special non-rpc treatment */
+	if (pipe_details) {
+		subreq =
+			pipe_details->start_server_loop(npc,
+							pipe_details->private_data);
+	} else {
+		subreq = dcerpc_read_ncacn_packet_send(npc,
+						       npc->ev,
+						       npc->tstream);
+		if (subreq) {
+			tevent_req_set_callback(subreq,
+						named_pipe_packet_process, npc);
+		}
+	}
 	if (!subreq) {
 		DEBUG(2, ("Failed to start receiving packets\n"));
 		goto fail;
 	}
-	tevent_req_set_callback(subreq, named_pipe_packet_process, npc);
 	return;
 
 fail:
@@ -404,6 +468,7 @@ fail:
 	return;
 }
 
+static void named_pipe_packet_done(struct tevent_req *subreq);
 void named_pipe_packet_process(struct tevent_req *subreq)
 {
 	struct named_pipe_client *npc =

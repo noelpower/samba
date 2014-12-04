@@ -57,6 +57,8 @@ struct named_pipe_client {
 	void *private_data;
 };
 
+bool pipe_init_outgoing_data(struct pipes_struct *p);
+
 struct named_pipe_client *named_pipe_client_init(TALLOC_CTX *mem_ctx,
 						 struct tevent_context *ev_ctx,
 						 struct messaging_context *msg_ctx,
@@ -110,4 +112,16 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 			 int s,
 			 dcerpc_ncacn_disconnect_fn fn);
 
+typedef struct tevent_req *(*server_loop_fn)(struct named_pipe_client *npc,
+					     void *private_data);
+struct name_pipe_server_details {
+	struct name_pipe_server_details *prev, *next;
+	const char* name;
+	uint16_t msg_mode;
+	server_loop_fn start_server_loop;
+	void *private_data;
+};
+
+void add_pipe_server_details(const char *name, uint16_t msg_mode, server_loop_fn loop, void *private_data);
+struct name_pipe_server_details *get_pipe_server_details(const char* name);
 #endif /* _PRC_SERVER_H_ */
