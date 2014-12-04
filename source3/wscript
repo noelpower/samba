@@ -1700,6 +1700,7 @@ main() {
             conf.fatal('Missing glib-2.0 development files')
 
         Logs.info("building with Spotlight support")
+        default_static_modules.extend(TO_LIST('rpc_mdssvc_module'))
         conf.DEFINE('WITH_SPOTLIGHT', '1')
         conf.env.with_spotlight = True
         default_static_modules.extend(TO_LIST('rpc_mdssvc_module'))

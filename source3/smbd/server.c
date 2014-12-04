@@ -96,6 +96,11 @@ struct smbd_child_pid {
 	pid_t pid;
 };
 
+/* #TODO these type of function are no longer extern'd we need a header file */
+
+extern void start_wspd(struct tevent_context *ev_ctx,
+			struct messaging_context *msg_ctx, bool is_external);
+
 /*******************************************************************
  What to do when smb.conf is updated.
  ********************************************************************/
@@ -2154,7 +2159,14 @@ extern void build_options(bool screen);
 		if (rpc_fss_daemon() == RPC_DAEMON_FORK) {
 			start_fssd(ev_ctx, msg_ctx);
 		}
-
+#ifdef WITH_WSP
+		if (rpc_wsp_daemon() == RPC_DAEMON_FORK) {
+			DEBUG(0,("### about to start wsp\n"));
+			start_wspd(ev_ctx, msg_ctx, true);
+		} else {
+			start_wspd(ev_ctx, msg_ctx, false);
+		}
+#endif
 		if (!lp__disable_spoolss() &&
 		    (rpc_spoolss_daemon() != RPC_DAEMON_DISABLED)) {
 			bool bgq = lp_parm_bool(-1, "smbd", "backgroundqueue", true);

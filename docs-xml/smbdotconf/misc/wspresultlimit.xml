@@ -1,0 +1,12 @@
+<samba:parameter name="wsp result limit"
+		 context="G"
+		 type="integer"
+		 xmlns:samba="http://www.samba.org/samba/DTD/samba-doc">
+<description>
+	<para> This parameter allows the number of results returned from a WSP
+	  query on a share to be controlled.</para>
+
+	<para> A value of 0 indicates no unlimited results will be returned.</para>
+</description>
+<value type="default">0</value>
+</samba:parameter>

@@ -158,6 +158,11 @@ bld.SAMBA3_MODULE('rpc_mdssvc_module',
                   internal_module=bld.SAMBA3_IS_STATIC_MODULE('rpc_mdssvc_module'),
                   enabled=bld.SAMBA3_IS_ENABLED_MODULE('rpc_mdssvc_module'))
 
+bld.SAMBA3_SUBSYSTEM('WSPSVC',
+                    source='''wsp/wsp_gss.c wsp/wsp_sparql_conv.c wsp/wsp_srv_tracker_abs_if.c wsp/wsp_srv_tracker-sparql.c''',
+                    deps='LIBNET tevent-glib-glue ' + bld.env['libtracker'],
+		    enabled=bld.env.with_wsp)
+
 # RPC_SERVICE
 bld.SAMBA3_SUBSYSTEM('RPC_SERVER_REGISTER',
                     source='rpc_ep_register.c ../librpc/rpc/dcerpc_ep.c',
@@ -194,6 +199,11 @@ bld.SAMBA3_SUBSYSTEM('RPC_SERVICE',
 bld.SAMBA3_SUBSYSTEM('RPC_SOCK_HELPER',
                     source='rpc_sock_helper.c',
                     deps='RPC_SERVER_REGISTER')
+
+bld.SAMBA3_SUBSYSTEM('WSPD',
+                    source='wspd.c',
+                    deps='samba-util',
+		    enabled=bld.env.with_wsp)
 
 bld.SAMBA3_SUBSYSTEM('EPMD',
                     source='epmd.c',

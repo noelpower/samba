@@ -26,6 +26,7 @@
 #include "rpc_server/srv_pipe_hnd.h"
 #include "include/ntioctl.h"
 #include "smb2_ioctl_private.h"
+#include "librpc/gen_ndr/ndr_ioctl.h"
 
 #undef DBGC_CLASS
 #define DBGC_CLASS DBGC_SMB2
@@ -42,50 +43,23 @@ struct pipe_wait_req_data
 };
 
 static bool read_pipe_wait_request_data(TALLOC_CTX * ctx,
-					struct pipe_wait_req_data *wait_request,
+					struct fsctl_pipe_wait *wait_request,
 					DATA_BLOB *input)
 {
-	uint8_t *buf = input->data;
-	uint32_t pos = 0;
-	/* lenght of data up to pipe name */
-	uint32_t min_len = 14;
-	bool result = false;
-
-	if (input->length < min_len) {
-		result = false;
-		goto out;
+	enum ndr_err_code err;
+	err = ndr_pull_struct_blob(input,
+			ctx, wait_request,
+			(ndr_pull_flags_fn_t)ndr_pull_fsctl_pipe_wait);
+	if (!NDR_ERR_CODE_IS_SUCCESS(err)) {
+		return false;
 	}
-
-	wait_request->timeout = BVALS(buf, pos);
-	pos += 8;
-
-	wait_request->name_len = IVAL(buf, pos);
-	pos +=4;
-
-	if (min_len + wait_request->name_len > input->length) {
-		DEBUG(0,("incorrect buffer len, buffer size is %zu but we require %d\n", input->length, min_len + wait_request->name_len));
-		result =false;
-		goto out;
-	}
-
-	wait_request->timeout_specified = *(buf + pos);
-	pos++;
-
-	pos++; /* skip padding */
-
-	wait_request->pipe_name = talloc_array(ctx, char, wait_request->name_len/2 + 1);
-	pull_string(wait_request->pipe_name, (buf + pos),
-		    wait_request->name_len/2 + 1, wait_request->name_len,
-		    STR_UNICODE | STR_NOALIGN);
-	result = true;
-out:
-	return result;
+	return true;
 }
 
 static bool can_handle_wait(DATA_BLOB *input)
 {
 	TALLOC_CTX * ctx = talloc_init(NULL);
-	struct pipe_wait_req_data req_data;
+	struct fsctl_pipe_wait req_data;
 	bool result = false;
 	ZERO_STRUCT(req_data);
 

@@ -47,7 +47,7 @@ struct common_rawpipe_loop_ctx
 static struct tevent_req *process_rawpipe_request(TALLOC_CTX *mem_ctx,
 						   struct named_pipe_client *npc)
 {
-	struct tevent_req *subreq;
+	struct tevent_req *subreq = NULL;
 	struct pipes_struct *p = npc->p;
 	struct common_rawpipe_loop_ctx *ctx =
 			talloc_get_type_abort(npc->private_data,
@@ -253,6 +253,9 @@ void rawpipe_process(struct tevent_req *subreq)
 	npc->p->in_data.pdu = recv_buffer;
 
 	subreq = process_rawpipe_request(npc->p->mem_ctx, npc);
+	if (!subreq) {
+		goto fail;
+	}
 	tevent_req_set_callback(subreq, process_rawpipe_request_done, npc);
 	talloc_free(recv_buffer.data);
 	return;
