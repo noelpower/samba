@@ -856,11 +856,17 @@ bld.SAMBA3_SUBSYSTEM('LIBLSA',
                      source='lib/lsa.c')
 
 bld.SAMBA3_SUBSYSTEM('SPOOLSSD',
-                    source='printing/spoolssd.c',
-                    deps='''
-                         samba-util
-                         RPC_SOCK_HELPER
-                         ''')
+	    source='printing/spoolssd.c',
+	    deps='''
+		 samba-util
+		 RPC_SOCK_HELPER
+		 ''')
+
+bld.SAMBA3_SUBSYSTEM('tevent-glib-glue',
+	    source='lib/tevent_glib_glue.c',
+	    deps='glib-2.0',
+	    enabled=bld.CONFIG_SET('WITH_TEVENT_GLIB_GLUE'),
+)
 
 ########################## BINARIES #################################
 
