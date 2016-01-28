@@ -269,6 +269,9 @@ plantestsuite(
     "samba3.pthreadpool", "nt4_dc",
     [os.path.join(samba3srcdir, "script/tests/test_pthreadpool.sh")])
 
+plantestsuite("samba3.tevent_glib_glue", "nt4_dc",
+    [os.path.join(samba3srcdir, "script/tests/test_tevent_glib_glue.sh")])
+
 plantestsuite("samba3.async_req", "nt4_dc",
               [os.path.join(samba3srcdir, "script/tests/test_async_req.sh")])
 
