@@ -1372,6 +1372,17 @@ bld.SAMBA3_BINARY('eventlogadm',
                  param
                  LIBEVENTLOG''')
 
+bld.SAMBA3_BINARY('tevent_glib_glue_test',
+                 source='lib/tevent_glib_glue_tests.c',
+                 deps='''
+                 talloc
+                 libsmb
+                 popt_samba3
+                 param
+                 tevent-glib-glue''',
+                 enabled=bld.CONFIG_SET('WITH_TEVENT_GLIB_GLUE'),
+                 install=False)
+
 bld.SAMBA3_BINARY('sharesec',
                  source='utils/sharesec.c lib/util_sd.c',
                  deps='''
