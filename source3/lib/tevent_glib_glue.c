@@ -45,6 +45,7 @@ struct tevent_glib_glue {
 	struct tevent_context *ev;
 	GMainContext *gmain_ctx;
 	bool quit;
+	bool skip_glue_trace_event;
 
 	struct tevent_timer *retry_timer;
 	gint gtimeout;
@@ -58,8 +59,10 @@ struct tevent_glib_glue {
 	size_t num_maps;
 	struct tevent_timer *timer;
 	struct tevent_immediate *im;
-	bool scheduled_im;
+	bool draining_events;
 	struct pollfd *pollfds;
+	tevent_trace_callback_t prev_trace_cb;
+	void *prev_trace_data;
 };
 
 static bool tevent_glib_prepare(struct tevent_glib_glue *glue);
@@ -270,8 +273,12 @@ static void tevent_glib_fd_handler(struct tevent_context *ev,
 		private_data, struct tevent_glib_glue);
 
 	tevent_glib_process(glue);
-
-	return;
+	/*
+	 * we have already called tevent_glib_process, we wish to inhibit
+	 * the next TEVENT_TRACE_AFTER_LOOP_ONCE event from calling process
+	 * a second time (out of order)
+	 */
+	glue->skip_glue_trace_event = true;
 }
 
 static void tevent_glib_timer_handler(struct tevent_context *ev,
@@ -284,21 +291,81 @@ static void tevent_glib_timer_handler(struct tevent_context *ev,
 
 	glue->timer = NULL;
 	tevent_glib_process(glue);
-
+	/*
+	 * we have already called tevent_glib_process, we wish to inhibit
+	 * the next TEVENT_TRACE_AFTER_LOOP_ONCE event from calling process
+	 * a second time (out of order)
+	 */
+	glue->skip_glue_trace_event = true;
 	return;
 }
 
-static void tevent_glib_im_handler(struct tevent_context *ev,
-				   struct tevent_immediate *im,
-				   void *private_data)
+/* noop to force loop processing */
+static void tevent_im_tickle_loop_handler(struct tevent_context *ev,
+					  struct tevent_immediate *im,
+					  void *private_data)
 {
-	struct tevent_glib_glue *glue = talloc_get_type_abort(
-		private_data, struct tevent_glib_glue);
+	TALLOC_FREE(im);
+}
 
-	glue->scheduled_im = false;
-	tevent_glib_process(glue);
+/*
+ * This function preforms an optimisation for the following case:
+ *
+ * If g_main_context_query() returns a timeout value of 0 this
+ * implies that there maybe more glib event sources ready.
+ * Here we loop through the prepare, check & dispatch glib phases while
+ * the returned timeout is 0, this avoids scheduling an immediate event and
+ * going through tevent_loop_once().
+*/
+static void drain_glib_events( struct tevent_glib_glue *glue)
+{
+	bool sources_ready, ok;
+	do {
+		sources_ready = g_main_context_check(glue->gmain_ctx,
+						     glue->gpriority,
+						     glue->gpollfds,
+						     glue->num_gpollfds);
+		if (sources_ready) {
+			g_main_context_dispatch(glue->gmain_ctx);
+		}
 
-	return;
+		g_main_context_release(glue->gmain_ctx);
+
+		if (glue->quit) {
+			/* Set via tevent_glib_glue_quit() */
+			struct tevent_immediate *im =
+				tevent_create_immediate(NULL);
+			/*
+			 * as we are called from glib_prepare if we fall out
+			 * here more than likely there is a timeout that poll
+			 * will block for, an immediate event will force the
+			 * event loop to cycle and terminate if no more events.
+			 */
+			tevent_schedule_immediate(im, glue->ev,
+					  tevent_im_tickle_loop_handler, glue);
+			DEBUG(0,("quitting....\n"));
+			return;
+		}
+
+
+		/*
+		 * Give other glib threads a chance to grab the context,
+		 * tevent_glib_prepare() will then re-acquire it
+		 */
+
+		ok = tevent_glib_prepare(glue);
+		if (!ok) {
+			samba_tevent_glib_glue_quit(glue);
+			return;
+		}
+
+		if (glue->gtimeout != 0) {
+			break;
+		}
+
+	} while (true);
+
+	glue->draining_events = false;
 }
 
 static bool save_current_fdset(struct tevent_glib_glue *glue)
@@ -382,22 +449,9 @@ static bool tevent_glib_update_events(struct tevent_glib_glue *glue)
 	}
 
 	TALLOC_FREE(glue->timer);
-	if ((glue->gtimeout == 0) && (!glue->scheduled_im)) {
-		/*
-		 * Schedule an immediate event. We use a immediate event and not
-		 * an immediate timer event, because the former can be reused.
-		 *
-		 * We may be called in a loop in tevent_glib_process() and only
-		 * want to schedule this once, so we remember the fact.
-		 *
-		 * Doing this here means we occasionally schedule an unneeded
-		 * immediate event, but it avoids leaking abstraction into upper
-		 * layers.
-		 */
-		tevent_schedule_immediate(glue->im, glue->ev,
-					  tevent_glib_im_handler,
-					  glue);
-		glue->scheduled_im = true;
+	if ((glue->gtimeout == 0) && (!glue->draining_events)) {
+		glue->draining_events = true;
+		drain_glib_events(glue);
 	} else if (glue->gtimeout > 0) {
 		uint64_t microsec = glue->gtimeout * 1000;
 		struct timeval tv = tevent_timeval_current_ofs(microsec / 1000000,
@@ -432,7 +486,6 @@ static bool tevent_glib_prepare(struct tevent_glib_glue *glue)
 {
 	bool ok;
 	gboolean gok, source_ready;
-
 	gok = g_main_context_acquire(glue->gmain_ctx);
 	if (!gok) {
 		DBG_ERR("couldn't acquire g_main_context\n");
@@ -544,7 +597,7 @@ static bool tevent_glib_process(struct tevent_glib_glue *glue)
 {
 	bool ok;
 	int num_ready;
-
+	bool sources_ready;
 	ok = gpoll_to_poll_fds(glue);
 	if (!ok) {
 		DBG_ERR("gpoll_to_poll_fds failed\n");
@@ -563,61 +616,19 @@ static bool tevent_glib_process(struct tevent_glib_glue *glue)
 
 	DBG_DEBUG("tevent_glib_process: num_ready: %d\n", num_ready);
 
-	do {
-		bool sources_ready;
-
-		sources_ready = g_main_context_check(glue->gmain_ctx,
-						     glue->gpriority,
-						     glue->gpollfds,
-						     glue->num_gpollfds);
-		if (!sources_ready) {
-			break;
-		}
-
+	sources_ready = g_main_context_check(glue->gmain_ctx,
+					     glue->gpriority,
+					     glue->gpollfds,
+					     glue->num_gpollfds);
+	if (sources_ready) {
 		g_main_context_dispatch(glue->gmain_ctx);
-
-		if (glue->quit) {
-			/* Set via tevent_glib_glue_quit() */
-			g_main_context_release(glue->gmain_ctx);
-			return true;
-		}
-
-		/*
-		 * This is an optimisation for the following case:
-		 *
-		 * If g_main_context_query() returns a timeout value of 0 this
-		 * implicates that there may be more glib event sources ready.
-		 * This avoids sheduling an immediate event and going through
-		 * tevent_loop_once().
-		 */
-		if (glue->gtimeout != 0) {
-			break;
-		}
-
-		/*
-		 * Give other glib threads a chance to grab the context,
-		 * tevent_glib_prepare() will then re-acquire it
-		 */
-		g_main_context_release(glue->gmain_ctx);
-
-		ok = tevent_glib_prepare(glue);
-		if (!ok) {
-			samba_tevent_glib_glue_quit(glue);
-			return false;
-		}
-	} while (true);
+	}
 
 	/*
 	 * Give other glib threads a chance to grab the context,
 	 * tevent_glib_prepare() will then re-acquire it
 	 */
 	g_main_context_release(glue->gmain_ctx);
-
-	ok = tevent_glib_prepare(glue);
-	if (!ok) {
-		samba_tevent_glib_glue_quit(glue);
-		return false;
-	}
 
 	return true;
 }
@@ -631,6 +642,7 @@ static void tevent_glib_glue_cleanup(struct tevent_glib_glue *glue)
 		TALLOC_FREE(glue->fd_map[i].fd_event);
 	}
 
+	tevent_set_trace_callback(glue->ev, glue->prev_trace_cb, glue->prev_trace_data);
 	TALLOC_FREE(glue->fd_map);
 	TALLOC_FREE(glue->gpollfds);
 	TALLOC_FREE(glue->prev_gpollfds);
@@ -646,6 +658,43 @@ void samba_tevent_glib_glue_quit(struct tevent_glib_glue *glue)
 	tevent_glib_glue_cleanup(glue);
 	glue->quit = true;
 	return;
+}
+
+static void tevent_glib_glue_trace_callback(enum tevent_trace_point point,
+					    void *private_data)
+{
+	struct tevent_glib_glue *glue = talloc_get_type_abort(
+		private_data, struct tevent_glib_glue);
+	bool call_trace_handler;
+	/*
+	 * don't call prepare/process if explicity told to skip or if
+	 * we are still waiting to acquire the glib context
+	 */
+	call_trace_handler = (!glue->skip_glue_trace_event && !glue->retry_timer);
+
+	switch (point) {
+		case TEVENT_TRACE_BEFORE_LOOP_ONCE:
+		case TEVENT_TRACE_AFTER_LOOP_ONCE:
+			if (call_trace_handler) {
+				if (point == TEVENT_TRACE_BEFORE_LOOP_ONCE) {
+					tevent_glib_prepare(glue);
+				} else {
+					tevent_glib_process(glue);
+				}
+			}
+			glue->skip_glue_trace_event = false;
+			break;
+		case TEVENT_TRACE_BEFORE_WAIT:
+		case TEVENT_TRACE_AFTER_WAIT:
+		default:
+			break;
+	}
+
+
+	/* chain previous handler */
+	if (glue->prev_trace_cb) {
+		glue->prev_trace_cb(point, glue->prev_trace_data);
+	}
 }
 
 struct tevent_glib_glue *samba_tevent_glib_glue_create(TALLOC_CTX *mem_ctx,
@@ -668,12 +717,21 @@ struct tevent_glib_glue *samba_tevent_glib_glue_create(TALLOC_CTX *mem_ctx,
 
 	glue->im = tevent_create_immediate(glue);
 
+	tevent_get_trace_callback(glue->ev, &glue->prev_trace_cb, &glue->prev_trace_data);
+	tevent_set_trace_callback(ev, tevent_glib_glue_trace_callback,
+				  glue);
+
 	ok = tevent_glib_prepare(glue);
 	if (!ok) {
 		TALLOC_FREE(glue);
 		return NULL;
 	}
-
+	/*
+	 * we have already called tevent_glib_prepare, we wish to inhibit
+	 * the next TEVENT_TRACE_BEFORE_LOOP_ONCE event from calling prepare
+	 * a second time (out of order)
+	 */
+	glue->skip_glue_trace_event = true;
 	return glue;
 }
 
