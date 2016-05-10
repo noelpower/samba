@@ -873,6 +873,7 @@ bld.SAMBA3_BINARY('smbd/smbd',
                       FSSD
                       MDSSD
                       SPOOLSSD
+                      RAWPIPE
                       ''',
                  install_path='${SBINDIR}')
 
