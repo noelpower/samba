@@ -51,7 +51,9 @@
 #include "smbd/notifyd/notifyd.h"
 #include "smbd/smbd_cleanupd.h"
 #include "lib/util/sys_rw.h"
-
+#ifdef DEVELOPER
+#include "rpc_server/rawpipe.h"
+#endif
 #ifdef CLUSTER_SUPPORT
 #include "ctdb_protocol.h"
 #endif
@@ -1715,6 +1717,9 @@ extern void build_options(bool screen);
 		daemon_ready("smbd");
 	}
 
+#ifdef DEVELOPER
+	init_rawipe_echo(ev_ctx, msg_ctx);
+#endif
 	/* only start other daemons if we are running as a daemon
 	 * -- bad things will happen if smbd is launched via inetd
 	 *  and we fork a copy of ourselves here */
