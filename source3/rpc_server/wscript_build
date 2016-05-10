@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 ### RPC_SERVER
+bld.SAMBA3_SUBSYSTEM('RAWPIPE',
+                    source='rawpipe.c',
+                    deps='samba-util')
+
 bld.SAMBA3_SUBSYSTEM('rpc',
                     source='',
                     deps='RPC_PIPE_REGISTER')
