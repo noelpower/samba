@@ -147,18 +147,9 @@ static bool test_rawpipe_simple_echo(struct torture_context *tctx,
 	return ret;
 }
 
-/*
- * The idea here is to send a large message size that exceeds the normal
- * hardcoded Max Ioctl hard coded limit of 4280 bytes, this will generate
- * will result in a BUFFER_OVERFLOW error at the SMB layer in the response
- * from the server [1].
- *
- * [1] It seems we don't see the SMB BUFFER_OVERFLOW status at this layer
- *     however we can detect that the message is clipped to the current
- *     limit of 4280 bytes.
- */
-static bool test_rawpipe_large_message(struct torture_context *tctx,
-				     const void *data)
+static bool test_rawpipe_large_message_impl(struct torture_context *tctx,
+					    const void *data,
+					    bool increase_max_ioctl)
 {
 	NTSTATUS status;
 	bool ret = true;
@@ -170,18 +161,62 @@ static bool test_rawpipe_large_message(struct torture_context *tctx,
 	struct rawpipe_test_data *test_data =
 			talloc_get_type(data,
 					struct rawpipe_test_data);
+	struct tstream_context *stream = NULL;
 
 	TALLOC_CTX *mem_ctx = talloc_init("test_rawpipe_large_message");
 	in.data = talloc_array(mem_ctx, uint8_t, strlen(test_message) + 1);
 	in.length = talloc_array_length(in.data);
 	memcpy(in.data, test_message, in.length);
 
+	if (increase_max_ioctl) {
+		stream = test_data->p->conn->transport.stream;
+		tstream_smbXcli_np_set_max_data(stream, expected);
+	}
 	status = write_something(tctx, test_data->h, &in, &out);
 	torture_assert_ntstatus_ok_goto(tctx, status, ret, done, "failed to write to pipe\n");
-	ret = (out.length != expected) && (out.length == limit);
-	torture_comment(tctx, "test_rawpipe_large_message test was %s (received %d bytes expected %d)\n", ret ? "successful" : "unsuccsessful", (uint32_t)out.length, limit);
+	if (increase_max_ioctl) {
+		ret = out.length == expected;
+	} else {
+		ret = (out.length != expected) && (out.length == limit);
+	}
+	torture_comment(tctx, "test_rawpipe_large_message test was %s (received %d bytes expected %d)\n", ret ? "successful" : "unsuccsessful", (uint32_t)out.length, increase_max_ioctl ? expected : limit);
 done:
 	return ret;
+}
+
+/*
+ * The idea here is to send a large message size that exceeds the normal
+ * hardcoded Max Ioctl hard coded limit of 4280 bytes, this will generate
+ * will result in a BUFFER_OVERFLOW error at the SMB layer in the response
+ * from the server [1].
+ *
+ * [1] It seems we don't see the SMB BUFFER_OVERFLOW status at this layer
+ *     however we can detect that the message is clipped to the current
+ *     limit of 4280 bytes.
+ */
+static bool test_rawpipe_large_message_clipped(struct torture_context *tctx,
+					       const void *data)
+{
+	return test_rawpipe_large_message_impl(tctx, data, false);
+}
+
+/*
+ * The idea here is to send a large message size that exceeds the normal
+ * hardcoded Max Ioctl hard coded limit of 4280 bytes, this would normally
+ * result in a BUFFER_OVERFLOW error at the SMB layer in the response
+ * from the server. However, now we test 'tstream_smbXcli_np_set_max_data'
+ * a new function which allows us to adjust the size limit so the message
+ * should no longer be clipped.
+ *
+ * [1] It seems we don't see the SMB BUFFER_OVERFLOW status at this layer
+ *     however we can detect that the message is clipped to the current
+ *     limit of 4280 bytes.
+ */
+
+static bool test_rawpipe_large_message_newmax(struct torture_context *tctx,
+					      const void *data)
+{
+	return test_rawpipe_large_message_impl(tctx, data, true);
 }
 
 static bool raw_smb1_setup(struct torture_context *tctx,
@@ -290,10 +325,12 @@ struct torture_suite *torture_raw_rawpipe(TALLOC_CTX *mem_ctx)
 #ifdef DEVELOPER
 	/* SMB1 tests */
 	add_raw_test(suite, "smb1_simple_echo", test_rawpipe_simple_echo, false);
-	add_raw_test(suite, "smb1_echo_large_message", test_rawpipe_large_message, false);
+	add_raw_test(suite, "smb1_echo_large_message_clipped", test_rawpipe_large_message_clipped, false);
+	add_raw_test(suite, "smb1_echo_large_message_newmax", test_rawpipe_large_message_newmax, false);
 	/* SMB2 tests */
 	add_raw_test(suite, "smb2_simple_echo", test_rawpipe_simple_echo, true);
-	add_raw_test(suite, "smb2_echo_large_message", test_rawpipe_large_message, true);
+	add_raw_test(suite, "smb2_echo_large_message_clipped", test_rawpipe_large_message_clipped, true);
+	add_raw_test(suite, "smb2_echo_large_message_newmax", test_rawpipe_large_message_newmax, true);
 #endif
 	return suite;
 }
