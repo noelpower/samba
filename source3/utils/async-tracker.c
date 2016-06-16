@@ -159,6 +159,19 @@ static void query_cb(GObject      *object,
 	}
 }
 
+static void query_im_handler(struct tevent_context *ev,
+			     struct tevent_immediate *im,
+			     void *private_data)
+{
+	struct test_state *state = talloc_get_type_abort(private_data, struct test_state);
+	tracker_sparql_connection_query_async(state->connection,
+			      "SELECT ?name nie:mimeType(?s) nfo:fileName(?s) WHERE { {?s nie:url ?name}}",
+			      state->cancellable,
+			      query_cb,
+			      state);
+
+}
+
 static void connection_cb(GObject      *object,
 			  GAsyncResult *res,
 			  gpointer      user_data)
@@ -174,13 +187,28 @@ static void connection_cb(GObject      *object,
 	g_timer_start(state->timer);
 
 	if (!error) {
-		tracker_sparql_connection_query_async(
-			state->connection,
-			"SELECT ?name nie:mimeType(?s) nfo:fileName(?s) "
-			"WHERE { {?s nie:url ?name}}",
-			state->cancellable,
-			query_cb,
-			state);
+		if (state->loop_type == TEVENT_LOOP) {
+			/*
+			 * set up query to run in the context of a
+			 * tevent 'event'
+			 */
+			struct tevent_immediate *im =
+				tevent_create_immediate(state);;
+			if (im == NULL) {
+				g_critical("Could not create immediate event");
+				cleanup(state);
+			}
+			tevent_schedule_immediate(im, state->ev,
+					  query_im_handler,
+					  state);
+		} else {
+			tracker_sparql_connection_query_async(state->connection,
+					      "SELECT ?name nie:mimeType(?s) nfo:fileName(?s) WHERE { {?s nie:url ?name}}",
+					      state->cancellable,
+					      query_cb,
+					      state);
+
+		}
 	} else {
 		g_critical("Could not connect: %s", error->message);
 		g_error_free(error);
