@@ -1711,8 +1711,21 @@ main() {
     if conf.CHECK_FUNCS_IN('nscd_flush_cache', 'nscd', headers='libnscd.h'):
         conf.DEFINE('HAVE_NSCD_FLUSH_CACHE', '1')
 
+    if Options.options.with_wsp:
+        if not conf.CONFIG_SET('HAVE_TRACKER'):
+            conf.fatal('Missing Gnome Tracker development files')
+        Logs.info("building with WSP support")
+        conf.DEFINE('WITH_WSP', '1')
+        conf.env.with_wsp = True
+
+    # Check for components that need tevent_glib_glue
+    if conf.CONFIG_SET('WITH_SPOTLIGHT') or conf.CONFIG_SET('WITH_WSP'):
+        if not conf.CONFIG_SET('HAVE_GLIB'):
+            conf.fatal('Missing glib-2.0 development files')
+        conf.DEFINE('WITH_TEVENT_GLIB_GLUE', '1')
+
     forced_static_modules.extend(TO_LIST('auth_builtin auth_sam auth_winbind'))
-    default_static_modules.extend(TO_LIST('''pdb_smbpasswd pdb_tdbsam
+    default_static_modules.extend(TO_LIST('''pdb_smbpasswd pdb_tdbsam pdb_wbc_sam
                                       auth_unix
                                       nss_info_template idmap_tdb idmap_passdb
                                       idmap_nss'''))
