@@ -1668,10 +1668,6 @@ main() {
 
     conf.env.with_spotlight = False
     conf.env.with_wsp = False
-    if Options.options.with_wsp:
-        Logs.info("building with WSP support")
-        conf.DEFINE('WITH_WSP', '1')
-    	conf.env.with_wsp = True
     if Options.options.with_spotlight:
         if not conf.CONFIG_SET('HAVE_TRACKER'):
             conf.fatal('Missing Gnome Tracker development files')
@@ -1681,8 +1677,15 @@ main() {
         conf.env.with_spotlight = True
         default_static_modules.extend(TO_LIST('rpc_mdssvc_module'))
 
+    if Options.options.with_wsp:
+        if not conf.CONFIG_SET('HAVE_TRACKER'):
+            conf.fatal('Missing Gnome Tracker development files')
+        Logs.info("building with WSP support")
+        conf.DEFINE('WITH_WSP', '1')
+    	conf.env.with_wsp = True
+
     # Check for components that need tevent_glib_glue
-    if conf.CONFIG_SET('WITH_SPOTLIGHT'):
+    if conf.CONFIG_SET('WITH_SPOTLIGHT') or conf.CONFIG_SET('WITH_WSP'):
         if not conf.CONFIG_SET('HAVE_GLIB'):
             conf.fatal('Missing glib-2.0 development files')
         conf.DEFINE('WITH_TEVENT_GLIB_GLUE', '1')
