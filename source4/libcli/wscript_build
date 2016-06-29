@@ -8,6 +8,11 @@ bld.SAMBA_SUBSYSTEM('LIBSAMBA_TSOCKET',
 	public_deps='LIBTSOCKET tevent-util'
 	)
 
+bld.SAMBA_SUBSYSTEM('LIBSAMBA_WSP',
+	source='wsp/wsp_cli.c wsp/wsp_cli.c wsp/wsp_aqs.c wsp/wsp_aqs_parser.c wsp/wsp_aqs_lexer.c',
+	public_deps='tevent-util',
+	enabled=bld.env.with_wsp
+	)
 
 bld.SAMBA_SUBSYSTEM('LIBCLI_LSA',
 	source='util/clilsa.c',
