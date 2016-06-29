@@ -351,9 +351,7 @@ def configure(conf):
         if conf.check_cc(cflags='', ldflags='-Wl,-z,relro,-z,now', mandatory=need_relro,
                          msg="Checking compiler for full RELRO support"):
             conf.env['ENABLE_RELRO'] = True
-
     conf.SAMBA_CONFIG_H('include/config.h')
-
 def etags(ctx):
     '''build TAGS file using etags'''
     from waflib import Utils

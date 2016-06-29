@@ -1844,6 +1844,16 @@ main() {
         Logs.info("building with WSP support")
         conf.DEFINE('WITH_WSP', '1')
         conf.env.with_wsp = True
+        Logs.info("Requested WSP support, checking for bison")
+        bison.configure(conf)
+        if not conf.env['BISON']:
+            conf.fatal("WSP support requested but bison missing")
+        conf.CHECK_COMMAND('%s --version | head -n1' % conf.env['BISON'], msg='Using bison version', define=None, on_target=False)
+        Logs.info("Requested WSP support, checking for flex")
+        flex.configure(conf)
+        if not conf.env['FLEX']:
+            conf.fatal("WSP support requested but flex missing")
+        conf.CHECK_COMMAND('%s --version' % conf.env['FLEX'], msg='Using flex version', define=None, on_target=False)
 
     conf.env.with_spotlight = False
     if Options.options.with_spotlight is not False:
