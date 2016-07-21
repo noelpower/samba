@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+
+bld.SAMBA_BINARY('wspsearch',
+	source='wspsearch.c',
+	deps='popt POPT_SAMBA POPT_CREDENTIALS dcerpc LIBSAMBA_WSP LIBCLI_SMB SMBREADLINE NDR_WSP NDR_WSP_DATA ',
+	enabled=bld.env.with_wsp
+	)
+
