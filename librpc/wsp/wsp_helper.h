@@ -22,10 +22,69 @@
 #define __LIBRPC_WSP_HELPER_H__
 
 struct safearraybound;
+struct wsp_cfullpropspec;
+struct wsp_cpmgetrowsin;
+struct wsp_cpmgetrowsout;
+struct wsp_cpmsetbindingsin;
+struct wsp_cbasestoragevariant;
+struct wsp_crestriction;
 struct wsp_hyper;
-
+struct GUID;
 uint32_t calc_array_size(struct safearraybound *bounds, uint32_t ndims);
+
+struct full_propset_info {
+	uint32_t id;
+	const char *name;
+	uint16_t vtype;
+	bool extra_info;
+	bool in_inverted_index;
+	bool is_column;
+	bool can_col_be_indexed;
+	uint16_t max_size;
+};
+
+char *prop_from_fullprop(TALLOC_CTX *ctx, struct wsp_cfullpropspec *fullprop);
+const struct full_propset_info *get_prop_info(const char *prop_name);
+const struct full_propset_info *get_propset_info_with_guid(
+						const char *prop_name,
+						struct GUID *guid);
+const char * get_vtype_name(uint32_t type);
+bool is_variable_size(uint16_t vtype);
 void uint64_to_wsp_hyper(uint64_t src, struct wsp_hyper *dest);
 void wsp_hyper_to_uint64(struct wsp_hyper *src, uint64_t *dest);
+const char *get_store_status(uint8_t status_byte);
 
+bool is_operator(struct wsp_crestriction *restriction);
+const char *op_as_string(struct wsp_crestriction *restriction);
+const char *raw_restriction_to_string(TALLOC_CTX *ctx,
+				  struct wsp_crestriction *restriction);
+struct wsp_cfullpropspec *get_full_prop(struct wsp_crestriction *restriction);
+const char *genmeth_to_string(uint32_t genmethod);
+const char *variant_as_string(TALLOC_CTX *ctx,
+			struct wsp_cbasestoragevariant *value,
+			bool quote);
+
+void set_variant_lpwstr(TALLOC_CTX *ctx,
+			struct wsp_cbasestoragevariant *vvalue,
+			const char *string_val);
+void set_variant_i4(TALLOC_CTX *ctx,
+		    struct wsp_cbasestoragevariant *vvalue,
+		    uint32_t val);
+void set_variant_vt_bool(TALLOC_CTX *ctx,
+			struct wsp_cbasestoragevariant *variant,
+			bool bval);
+void set_variant_bstr(TALLOC_CTX *ctx, struct wsp_cbasestoragevariant *variant,
+		      const char *string_val);
+void set_variant_lpwstr_vector(TALLOC_CTX *ctx,
+			      struct wsp_cbasestoragevariant *variant,
+			      const char **string_vals, uint32_t elems);
+void set_variant_array_bstr(TALLOC_CTX *ctx,
+			   struct wsp_cbasestoragevariant *variant,
+			   const char **string_vals, uint16_t elems);
+void set_variant_i4_vector(TALLOC_CTX *ctx,
+			   struct wsp_cbasestoragevariant *variant,
+			   int32_t* ivector, uint32_t elems);
+void set_variant_array_i4(TALLOC_CTX *ctx,
+			 struct wsp_cbasestoragevariant *variant,
+			 int32_t *vals, uint16_t elems);
 #endif // __LIBRPC_WSP_HELPER_H__
