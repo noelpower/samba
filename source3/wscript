@@ -79,6 +79,7 @@ def options(opt):
                   action="store_true", dest='enable_vxfs', default=False)
 
     opt.samba_add_onoff_option('spotlight', with_name="enable", without_name="disable", default=False)
+    opt.samba_add_onoff_option('wsp', with_name="enable", without_name="disable", default=False)
 
 def configure(conf):
     default_static_modules = []
@@ -1675,6 +1676,11 @@ main() {
                            on_target=False)
 
     conf.env.with_spotlight = False
+    conf.env.with_wsp = False
+    if Options.options.with_wsp:
+        Logs.info("building with WSP support")
+        conf.DEFINE('WITH_WSP', '1')
+        conf.env.with_wsp = True
     if Options.options.with_spotlight:
         if not conf.env['BISON']:
             conf.fatal("Spotlight support requested but bison missing")
