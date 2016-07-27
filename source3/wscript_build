@@ -1284,6 +1284,15 @@ bld.SAMBA3_BINARY('test_mdsparser_es',
                  ''',
                  enabled=bld.env.spotlight_backend_es,
                  for_selftest=True)
+bld.SAMBA3_BINARY('wsp-to-sparql',
+                 source='utils/wsp-to-tracker.c rpc_server/wsp/wsp_sparql_conv.c',
+                 deps='''
+                 talloc
+                 popt_samba3
+                 smbd_base
+                 NDR_WSP
+                 NDR_WSP_DATA''',
+                 enabled=bld.env.with_wsp)
 
 bld.SAMBA3_BINARY('pdbtest',
                  source='torture/pdbtest.c',
