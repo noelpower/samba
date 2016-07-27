@@ -1035,6 +1035,16 @@ bld.SAMBA3_BINARY('msg_source',
                  param''',
                  install=False)
 
+bld.SAMBA3_BINARY('wsp-to-sparql',
+                 source='utils/wsp-to-tracker.c rpc_server/wsp/wsp_sparql_conv.c',
+                 deps='''
+                 talloc
+                 popt_samba3
+                 smbd_base
+                 NDR_WSP
+                 NDR_WSP_DATA''',
+                 enabled=bld.env.with_wsp)
+
 bld.SAMBA3_BINARY('tevent_glib_glue_test',
                  source='lib/tevent_glib_glue_tests.c',
                  deps='''
