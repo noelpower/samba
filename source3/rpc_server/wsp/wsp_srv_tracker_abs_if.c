@@ -352,8 +352,6 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 				share = tmp_data->share;
 			}
 		}
-	} else {
-		query_info->share = share;
 	}
 
 	if (!share) {
@@ -363,6 +361,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 	} else {
 		char *service;
 		int snum = find_service(query_info, share, &service);
+		query_info->share = share;
 		if ((snum == -1) || (service == NULL)) {
 			DBG_ERR("share %s not found\n", share);
 			status = NT_STATUS_INVALID_PARAMETER;
