@@ -295,4 +295,7 @@ interface constants
 	const uint32 XOR_CONST				= 0x59533959;
 	const uint32 E_UNEXPECTED			= 0x8000FFFF;
 	const uint32 WIN_UPDATE_ERR			= 0x80070003;
+
+	const uint32 QUERY_SORTASCEND			= 0x00000000;
+	const uint32 QUERY_DESCEND			= 0x00000001;
 }
