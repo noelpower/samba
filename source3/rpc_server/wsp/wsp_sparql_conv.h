@@ -72,6 +72,7 @@ NTSTATUS build_tracker_query(TALLOC_CTX *ctx,
 			     const char* restriction_expr,
 			     struct wsp_cpidmapper *pidmapper,
 			     struct tracker_selected_cols *tracker_cols,
+			     struct wsp_csortset *sorting,
 			     bool convert_props,
 			     const char **query);
 

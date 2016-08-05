@@ -2027,6 +2027,69 @@ out:
 	return status;
 }
 
+static const char* get_sort_string(TALLOC_CTX *ctx,
+				   struct wsp_cpidmapper *pidmapper,
+				   struct wsp_csortset *sorting)
+{
+	int i;
+	int sort_index= 0;
+	const char * sort_by[sorting->count];
+	struct wsp_csort *order = sorting->sortarray;
+	const char* sort_str = NULL;
+	ZERO_STRUCT(sort_by);
+	for (i = 0; i < sorting->count; i++) {
+		int pid_index = order[i].pidcolimn;
+		struct wsp_cfullpropspec *prop_spec =
+			&pidmapper->apropspec[pid_index];
+		char *prop = prop_from_fullprop(ctx, prop_spec);
+		struct tracker_detail *detail =
+			get_tracker_detail(prop);
+
+		/* search sparql_conv for a match to the sort term */
+		if (detail && detail->tracker_id) {
+			int j;
+			if (order[i].dworder != QUERY_SORTASCEND &&
+				order[i].dworder != QUERY_DESCEND) {
+				DBG_ERR("Uknown sort order %d\n", order[i].dworder);
+				return NULL;
+			}
+			if (sort_str == NULL) {
+				sort_str =
+					talloc_asprintf(ctx,
+							"ORDER BY");
+			}
+			if (order[i].dworder) {
+				sort_str = talloc_asprintf(ctx,
+					"%s ASC(%s(?u))",
+					sort_str,
+					detail->tracker_id);
+			} else {
+				sort_str = talloc_asprintf(ctx,
+					"%s DESC(%s(?u))",
+					sort_str,
+					detail->tracker_id);
+			}
+			/* don't try and order by the same col again */
+			if (sort_index) {
+				for (j = 0; j < sort_index; j++) {
+					if (strequal(detail->tracker_id,
+					     sort_by[j])) {
+						DBG_INFO("### Already sorting by %s\n", detail->tracker_id);
+						break;
+					}
+					else {
+						sort_by[sort_index++] =
+							detail->tracker_id;
+					}
+				}
+			} else {
+				sort_by[sort_index++] =
+						detail->tracker_id;
+			}
+		}
+	}
+	return sort_str;
+}
 /*
  * convert_props if false won't attempt to convert wsp restriction
  * properties to tracker properties
@@ -2036,6 +2099,7 @@ NTSTATUS build_tracker_query(TALLOC_CTX *ctx,
 			     const char* restriction_expr,
 			     struct wsp_cpidmapper *pidmapper,
 			     struct tracker_selected_cols *tracker_cols,
+			     struct wsp_csortset *sorting,
 			     bool convert_props,
 			     const char **query)
 {
@@ -2043,6 +2107,7 @@ NTSTATUS build_tracker_query(TALLOC_CTX *ctx,
 	const char *where_str = NULL;
 	const char *filter_str = restriction_expr;
 	const char *query_str = NULL;
+	const char *sort_str = NULL;
 
 	struct tracker_pair_list *item = NULL;
 	struct sparql_conv *sparql_conv = talloc_zero(ctx, struct sparql_conv);
@@ -2090,9 +2155,17 @@ NTSTATUS build_tracker_query(TALLOC_CTX *ctx,
 		where_str = talloc_strdup(ctx, "WHERE{?u nie:url ?url");
 	}
 
+	if (sorting) {
+		sort_str = get_sort_string(ctx, pidmapper, sorting);
+		if (sort_str == NULL) {
+			return NT_STATUS_INVALID_PARAMETER;
+		}
+	}
+
 	where_str = talloc_asprintf(ctx, "%s %s}", where_str,
 		strlen(filter_str) ? filter_str : "");
-	query_str = talloc_asprintf(ctx, "%s %s", select_str, where_str);
+	query_str = talloc_asprintf(ctx, "%s %s %s", select_str, where_str,
+			sort_str ? sort_str : "");
 	*query = query_str;
 	return status;
 }

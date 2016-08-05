@@ -361,7 +361,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 	} else {
 		char *service;
 		int snum = find_service(query_info, share, &service);
-		query_info->share = share;
+		query_info->share = talloc_strdup(query_info,share);
 		if ((snum == -1) || (service == NULL)) {
 			DBG_ERR("share %s not found\n", share);
 			status = NT_STATUS_INVALID_PARAMETER;
@@ -384,6 +384,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 				     restriction_expr,
 				     PidMapper,
 				     &query_info->cols_to_convert,
+				     SortOrders,
 				     true,
 				     &sparql_query);
 

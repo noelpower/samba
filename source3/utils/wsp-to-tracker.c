@@ -212,6 +212,10 @@ int main(int argc, char *argv[])
 		struct map_data *map_data;
 		struct wsp_ctablecolumn *columns;
 		uint32_t  ncolumns;
+		struct wsp_csortset *sortset;
+		if (query->csortsetpresent) {
+			sortset = &query->sortset.sortset;
+		}
 		result_converter = talloc_zero(ctx,
 					       struct binding_result_mapper);
 		if (!result_converter) {
@@ -235,6 +239,7 @@ int main(int argc, char *argv[])
 				     restrictionset_expr,
 				     pidmapper,
 				     &tracker_cols,
+				     sortset,
 				     !raw,
 				     &query_str);
 		if (!NT_STATUS_IS_OK(status)) {
