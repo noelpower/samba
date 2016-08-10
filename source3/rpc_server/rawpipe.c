@@ -253,6 +253,9 @@ void rawpipe_process(struct tevent_req *subreq)
 	npc->p->in_data.pdu = recv_buffer;
 
 	subreq = process_rawpipe_request(npc->p->mem_ctx, npc);
+	if (!subreq) {
+		goto fail;
+	}
 	tevent_req_set_callback(subreq, process_rawpipe_request_done, npc);
 	talloc_free(recv_buffer.data);
 	return;
