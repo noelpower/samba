@@ -81,6 +81,7 @@ static void wspd_smb_conf_updated(struct messaging_context *msg,
 {
 	DBG_DEBUG("Got message saying smb.conf was updated. Reloading.\n");
 	change_to_root_user();
+	lp_load_with_shares(get_dyn_CONFIGFILE());
 	wspd_reopen_logs();
 }
 
