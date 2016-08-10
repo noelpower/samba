@@ -99,6 +99,7 @@ struct query_data
 	const char* where_filter;
 	const char* share;
 	bool no_index;
+	bool wsp_enabled;
 	/*
 	 * current index set from index passed from last call to
 	 * SetNextGetRowsPosition. (maybe we should just store the
@@ -354,6 +355,22 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 		}
 	}
 
+	*CursorHandlesList = talloc_zero_array(query_info, uint32_t,
+					       query_info->ncursors);
+	/* allocate cursor id(s) */
+	for (i = 0; i < query_info->ncursors; i++) {
+		struct next_cursor_data *item = talloc_zero(query_info,
+					struct next_cursor_data);
+		*CursorHandlesList[i] = i + 1;
+
+		/* initial index (with unchaptered chapter) */
+		item->chapter = 0;
+		item->cursor = *CursorHandlesList[i];
+		item->index = 0;
+
+		DLIST_ADD_END(query_info->next_cursors.items, item);
+	}
+
 	if (!share) {
 		status = NT_STATUS_INVALID_PARAMETER;
 		can_query_now = false;
@@ -361,7 +378,14 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 	} else {
 		char *service;
 		int snum = find_service(query_info, share, &service);
+		DBG_INFO("SHARE %s has indexing = %s\n", share,
+			lp_wsp(snum) ? "enabled" : "disabled");
 		query_info->share = talloc_strdup(query_info,share);
+		query_info->wsp_enabled = lp_wsp(snum);
+		if (query_info->wsp_enabled == false) {
+			status = NT_STATUS_OK;
+			goto err_out;
+		}
 		if ((snum == -1) || (service == NULL)) {
 			DBG_ERR("share %s not found\n", share);
 			status = NT_STATUS_INVALID_PARAMETER;
@@ -393,23 +417,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 		goto err_out;
 	}
 
-	*CursorHandlesList = talloc_zero_array(query_info, uint32_t,
-					       query_info->ncursors);
 	query_info->rowsetproperties = *RowSetProperties;
-
-	/* allocate cursor id(s) */
-	for (i = 0; i < query_info->ncursors; i++) {
-		struct next_cursor_data *item = talloc_zero(query_info,
-					struct next_cursor_data);
-		*CursorHandlesList[i] = i + 1;
-
-		/* initial index (with unchaptered chapter) */
-		item->chapter = 0;
-		item->cursor = *CursorHandlesList[i];
-		item->index = 0;
-
-		DLIST_ADD_END(query_info->next_cursors.items, item);
-	}
 	query_info->restrictionset = *RestrictionSet;
 
 	*fWorkidUnique = false;
@@ -615,6 +623,12 @@ static struct tevent_req *get_query_status_send(
 	state->QueryStatus = QueryStatus;
 	state->query_data = query_data;
 
+	if (query_data->wsp_enabled == false) {
+		*QueryStatus = 2;
+		tevent_req_nterror(req, NT_STATUS_OK);
+		tevent_req_done(req);
+		return tevent_req_post(req, glob_data->ev);
+	}
 	subreq = get_tracker_query_status(state, glob_data, QueryIdentifier,
 					  &query_data->state, &state->nrows);
 	if (!subreq) {
@@ -690,8 +704,11 @@ static struct tevent_req *get_ratiofinished_params_send(TALLOC_CTX *ctx,
 	state->rdwRatioFinishedNumerator = rdwRatioFinishedNumerator;
 	state->cRows = cRows;
 	state->fNewRows = fNewRows;
-
 	if (query_data) {
+		if (query_data->wsp_enabled == false) {
+			status = NT_STATUS_OK;
+			goto early_out;
+		}
 		if (query_data->state == QUERY_COMPLETE) {
 			rows = query_data->nrows;
 			status = NT_STATUS_OK;
@@ -711,6 +728,7 @@ static struct tevent_req *get_ratiofinished_params_send(TALLOC_CTX *ctx,
 			return req;
 		}
 	}
+early_out:
 	*rdwRatioFinishedDenominator = 0;
 	*rdwRatioFinishedDenominator = rows;
 	*cRows = rows; /* MS-WSP says client dont use it */
@@ -741,6 +759,10 @@ static void get_ratiofinished_params_done(struct tevent_req *subreq)
 
 	if (state->query_data->state == QUERY_COMPLETE) {
 		state->query_data->nrows = state->rows;
+	}
+	if (state->query_data->wsp_enabled == false) {
+		tevent_req_done(req);
+		return;
 	}
 	*state->rdwRatioFinishedDenominator = 0;
 	*state->rdwRatioFinishedDenominator = state->rows;
@@ -805,6 +827,10 @@ static struct tevent_req *get_expensive_properties_send(TALLOC_CTX *ctx,
 		goto out;
 	}
 
+	if (query_data->wsp_enabled == false) {
+		status = NT_STATUS_OK;
+		goto out;
+	}
 	state->query_data = query_data;
 	state->rcRowsTotal = rcRowsTotal;
 	state->rdwResultCount = rdwResultCount;
@@ -1077,6 +1103,13 @@ static struct tevent_req *get_rows_send(TALLOC_CTX *ctx,
 	if (query_data->state == QUERY_ERROR) {
 		*Error = E_UNEXPECTED;
 		tevent_req_nterror(req, NT_STATUS_UNSUCCESSFUL);
+		return tevent_req_post(req, glob_data->ev);
+	}
+
+	if (query_data->wsp_enabled == false) {
+		*NoMoreRowsToReturn = true;
+		tevent_req_nterror(req, NT_STATUS_OK);
+		tevent_req_done(req);
 		return tevent_req_post(req, glob_data->ev);
 	}
 
@@ -1366,6 +1399,18 @@ static NTSTATUS get_query_stats(struct wspd_client_state *client_state,
 	*NumOutstandingModifies = 0;
 	if (!query_info) {
 		status = NT_STATUS_INVALID_PARAMETER;
+		goto done;
+	} else if (query_info->wsp_enabled == false) {
+		DBG_ERR("indexing not available for share %s\n",
+			 query_info->share);
+		/*
+		 * On windows we see that an indexed share that has
+		 * indexing turned off seems to return zero results
+		 * until such time as the client requests scope statistics
+		 * if we sent the error below then the client will fall back
+		 * to searching via smb.
+		 */
+		status = NT_STATUS(0x80070003);
 		goto done;
 	} else if (query_info->no_index){
 		status = NT_STATUS(WIN_UPDATE_ERR);
