@@ -34,9 +34,10 @@
 #include "smb_composite/smb_composite.h"
 #include "lib/cmdline/popt_common.h"
 #include "libcli/resolve/resolve.h"
-#include "librpc/rpc/dcerpc_raw.h"
 #include <tevent.h>
 #include <util/tevent_ntstatus.h>
+#include "libcli/tstream_binding_handle/tstream_binding_handle.h"
+#include "lib/tsocket/tsocket.h"
 
 #define MSG_HDR_SIZE 16
 #if  __WORDSIZE == 64
@@ -1433,6 +1434,26 @@ static NTSTATUS wait_for_pipe(TALLOC_CTX *mem_ctx,
 	return status;
 }
 
+static NTSTATUS wsp_resp_pdu_complete(struct tstream_context *stream,
+				      void *private_data,
+				      DATA_BLOB blob,
+				      size_t *packet_size)
+{
+	ssize_t to_read;
+
+	to_read = tstream_pending_bytes(stream);
+	if (to_read == -1) {
+		return NT_STATUS_IO_DEVICE_ERROR;
+	}
+
+	if (to_read > 0) {
+		*packet_size = blob.length + to_read;
+		return STATUS_MORE_ENTRIES;
+	}
+
+	return NT_STATUS_OK;
+}
+
 NTSTATUS wsp_server_connect(TALLOC_CTX *mem_ctx,
 			    const char *servername,
 			    struct tevent_context *ev_ctx,
@@ -1492,7 +1513,12 @@ NTSTATUS wsp_server_connect(TALLOC_CTX *mem_ctx,
 		return status;
 	}
 
-	h = create_rawpipe_handle(p);
+	h = tstream_binding_handle_create(p,
+					  NULL,
+					  &p->conn->transport.stream,
+					  MSG_HDR_SIZE,
+					  wsp_resp_pdu_complete,
+					  ctx, 42280);
 
 	if (!h) {
 		DBG_ERR("failed to create the pipe handle)\n");
@@ -1512,22 +1538,8 @@ static NTSTATUS write_something(TALLOC_CTX* ctx,
 				DATA_BLOB *blob_out)
 {
 	uint32_t outflags;
-	struct tstream_context *stream;
 	struct dcerpc_binding_handle *handle = p->binding_handle;
-
 	NTSTATUS status;
-
-	stream = p->conn->transport.stream;
-	status = tstream_smbXcli_np_use_trans(stream);
-
-	if (!NT_STATUS_IS_OK(status)) {
-		DBG_ERR("failed to set trans mode on pipe status: %s)\n",
-		      nt_errstr(status));
-		return status;
-	}
-
-	/* set large data */
-	tstream_smbXcli_np_set_max_data(stream, 42800);
 
 	status = dcerpc_binding_handle_raw_call(handle,
 						NULL,
