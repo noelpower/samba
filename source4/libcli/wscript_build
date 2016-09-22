@@ -18,7 +18,7 @@ bld.SAMBA_GENERATOR('wsp_flex',
 
 bld.SAMBA_SUBSYSTEM('LIBSAMBA_WSP',
 	source='wsp/wsp_cli.c wsp/wsp_cli.c wsp/wsp_aqs.c wsp/wsp_aqs_parser.y wsp/wsp_aqs_lexer.c',
-	public_deps='tevent-util wsp_flex',
+	public_deps='tevent-util wsp_flex tstream_binding_handle',
 	enabled=bld.env.with_wsp
 	)
 
