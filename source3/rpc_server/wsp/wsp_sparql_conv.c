@@ -2310,6 +2310,14 @@ static const char *print_restriction(TALLOC_CTX *ctx,
 	return result;
 }
 
+static bool is_andor(struct wsp_crestriction *restriction)
+{
+	if (restriction->ultype == RTAND || restriction->ultype == RTOR) {
+		return true;
+	}
+	return false;
+}
+
 /*
  * This is incomplete WIP more or less the 'proper' algorithm for traversing
  * a binary tree to produce an infix expression. It's not fully tested
@@ -2330,9 +2338,7 @@ static const char *infix(TALLOC_CTX *ctx, struct  wsp_abstract_state *glob_data,
 		return NULL;
 	}
 	if (is_operator(restriction)) {
-		foo = talloc_strdup(ctx, "(");
-		if (restriction->ultype == RTAND
-		   || restriction->ultype == RTOR){
+		if (is_andor(restriction)) {
 			struct wsp_cnoderestriction *cnodes =
 				&restriction->restriction.cnoderestriction;
 			if (cnodes->cnode) {
@@ -2349,28 +2355,26 @@ static const char *infix(TALLOC_CTX *ctx, struct  wsp_abstract_state *glob_data,
 	token = print_restriction(ctx, glob_data, restriction, priv_data);
 	right_node = infix(ctx, glob_data, right, priv_data);
 
-	if (right_node || left_node || token){
-		if (is_operator(restriction)) {
-			if (right_node && left_node) {
-				foo = talloc_asprintf(ctx, "%s%s %s %s", foo,
-					left_node,
-					token,
-					right_node);
-			} else  {
-				foo = talloc_asprintf(ctx, "%s%s%s", foo,
+	if (is_operator(restriction)) {
+		if (is_andor(restriction) == false && right_node && strlen(right_node)) {
+			foo = talloc_asprintf(ctx, "%s%s",
+				token,
+				right_node);
+		} else if (left_node && strlen(left_node) && right_node && strlen(right_node)) {
+			foo = talloc_asprintf(ctx, "(%s %s %s)", left_node,
+							token, right_node);
+		} else {
+			foo = talloc_asprintf(ctx, "(%s%s)",
 					left_node ? left_node : "",
 					right_node ? right_node : "");
-			}
-		} else  {
-			foo = talloc_asprintf(ctx, "%s%s%s",
-					     left_node ? left_node : "",
-					     token ? token : "",
-					     right_node ? right_node : "");
 		}
+	} else {
+		foo = talloc_asprintf(ctx, "%s%s%s",
+				left_node ? left_node : "",
+				token ? token : "",
+				right_node ? right_node : "");
 	}
-	if (is_operator(restriction)) {
-		foo = talloc_asprintf(ctx, "%s)", foo);
-	}
+
 	if (strequal(foo, "()")) {
 		foo = NULL;
 	}
