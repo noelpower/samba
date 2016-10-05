@@ -1258,13 +1258,12 @@ static NTSTATUS scope_filter_helper(TALLOC_CTX *ctx,
 		}
 	}
 	status = replace_share_in_url(ctx, prop_val, &prop_val);
-
 	if (!NT_STATUS_IS_OK(status)) {
 		goto done;
 	}
 
-	filter_str = talloc_asprintf(ctx, "regex(%s(?u),\'^%s\')",
-						detail->tracker_id,
+	filter_str = talloc_asprintf(ctx, "tracker:uri-is-descendant "
+					  "('%s', nie:url (?u))",
 						prop_val);
 	*filter = filter_str;
 	status = NT_STATUS_OK;
