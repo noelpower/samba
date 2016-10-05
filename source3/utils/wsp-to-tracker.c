@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
 		} else {
 			status = get_filter(ctx, NULL, restrictionset, !raw,  &query_str, &share, &where_id);
 		}
-		DBG_ERR("tracker-sparql restrictione expression\n\"%s\"\n", query_str);
+		DBG_ERR("tracker-sparql restriction expression\n\"%s\"\n", query_str);
 	}
 	result = 0;
 	status = NT_STATUS_OK;
