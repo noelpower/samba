@@ -2296,11 +2296,12 @@ static const char *print_restriction(TALLOC_CTX *ctx,
 				break;
 			}
 			case RTREUSEWHERE: {
+				tmp = NULL;
 				status = conv_ops->reusewhere_to_str(ctx,
 								glob_data,
 								restriction,
 								&tmp);
-				if (NT_STATUS_IS_OK(status) && strlen(tmp)) {
+				if (tmp && strlen(tmp)) {
 					result = tmp;
 				}
 				break;
