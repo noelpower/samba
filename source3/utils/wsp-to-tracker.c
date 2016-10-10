@@ -66,7 +66,7 @@ static void print_help(void)
 	DBG_ERR("\t-r restriction, prints out the restriction expression\n");
 	DBG_ERR("\t-n uses new infix expression generator (note: only works with -r option)\n");
 	DBG_ERR("\t-v don't do any conversion to tracker properties from wsp properties\n");
-	DBG_ERR("\t   don't drop any part of the extression, just print it out as you can\n");
+	DBG_ERR("\t   don't drop any part of the expression, just print it out as you can\n");
 }
 
 static bool synthesize_bindings(TALLOC_CTX *ctx,
