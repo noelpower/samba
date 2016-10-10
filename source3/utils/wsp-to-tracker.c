@@ -207,11 +207,12 @@ int main(int argc, char *argv[])
 	}
 
 	if (new_generator) {
-		restrictionset_expr =
+		status =
 			build_restriction_expression(ctx,
 						     NULL,
 						     restrictionset,
 						     !raw,
+						     &restrictionset_expr,
 						     &share);
 	} else {
 		DBG_ERR("using old generator\n");
@@ -228,7 +229,12 @@ int main(int argc, char *argv[])
 		DBG_ERR("failed to generate restriction expression\n");
 		goto out;
 	}
-//		status = get_filter(ctx, NULL, restrictionset, !raw,  &restrictionset_expr, &share, &where_id);
+
+	if (!NT_STATUS_IS_OK(status)) {
+		DBG_ERR("status failure detected %s\n",
+			nt_errstr(status));
+	}
+
 	if (full) {
 		struct binding_result_mapper *result_converter;
 		struct map_data *map_data;

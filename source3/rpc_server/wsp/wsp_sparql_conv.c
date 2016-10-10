@@ -1568,11 +1568,13 @@ static struct wsp_cfullpropspec *get_full_prop(struct wsp_crestriction *restrict
 	return result;
 }
 
-static const char* rtcontent_to_string(TALLOC_CTX *ctx,
-				       struct wsp_ccontentrestriction *content,
-				       struct tracker_detail *detail)
+static NTSTATUS rtcontent_to_string(TALLOC_CTX *ctx,
+				    struct wsp_ccontentrestriction *content,
+				    struct tracker_detail *detail,
+				    const char **presult)
 {
 	const char *result = talloc_strdup(ctx, "");
+	NTSTATUS status = NT_STATUS_OK;
 	if (content->ulgeneratemethod) {
 		result = talloc_asprintf(ctx, "regex(%s(?u),\'^%s\')",
 					     detail->tracker_id,
@@ -1583,66 +1585,67 @@ static const char* rtcontent_to_string(TALLOC_CTX *ctx,
 					     detail->tracker_id,
 					     content->pwcsphrase);
 	}
-	return result;
+	*presult = result;
+	return status;
 }
 
-static const char* rtproperty_to_string(TALLOC_CTX *ctx,
-			       struct wsp_cpropertyrestriction *restrict_prop,
-			       struct tracker_detail *detail)
+static NTSTATUS rtproperty_to_string(TALLOC_CTX *ctx,
+				struct wsp_cpropertyrestriction *restrict_prop,
+				struct tracker_detail *detail,
+				const char **presult)
 {
 	const char *operator = relop(restrict_prop->relop);
 	const char *value = property_restriction_val(ctx, restrict_prop, true);
 	const char *result = talloc_strdup(ctx, "");
+	NTSTATUS status = NT_STATUS_OK;
 	result = talloc_asprintf(ctx, "%s(?u) %s %s", detail->tracker_id,
 				 operator,
 				 value);
-	return result;
+	*presult = result;
+	return status;
 }
 
-static const char* rtpropertycontainer_to_string(TALLOC_CTX *ctx,
+static NTSTATUS rtpropertycontainer_to_string(TALLOC_CTX *ctx,
 					struct wsp_abstract_state *glob_data,
 					struct wsp_crestriction *restriction,
-					void *priv_data)
+					void *priv_data,
+					const char **presult)
 {
 	struct wsp_cfullpropspec *prop_spec = get_full_prop(restriction);
 	const char *prop = prop_from_fullprop(ctx, prop_spec);
 	struct tracker_detail *detail = get_tracker_detail(prop);
 	const char *result = talloc_strdup(ctx, "");
-	NTSTATUS status;
+	NTSTATUS status = NT_STATUS_OK;
 	if (detail && detail->tracker_id && !detail->filt_helper) {
 		if (detail->filt_helper) {
 			status = detail->filt_helper(ctx, detail,
 						     restriction,
 						     &result,
 						     priv_data);
-			if (!NT_STATUS_IS_OK(status)) {
-					goto done;
-			}
 		} else {
 			if (restriction->ultype == RTPROPERTY) {
 				struct wsp_cpropertyrestriction *cprop;
 				cprop = &restriction->restriction.cpropertyrestriction;
-				result = rtproperty_to_string(ctx,
+				status = rtproperty_to_string(ctx,
 							      cprop,
-							      detail);
+							      detail,
+							      &result);
 			} else if (restriction->ultype == RTCONTENT) {
 				struct wsp_ccontentrestriction *ccont;
 				ccont =	&restriction->restriction.ccontentrestriction;
-				result = rtcontent_to_string(ctx,
+				status = rtcontent_to_string(ctx,
 							     ccont,
-							     detail);
+							     detail,
+							     &result);
 			}
 		}
 	} else if (detail && detail->filt_helper) {
 		status = detail->filt_helper(ctx, detail, restriction,
 					     &result,
 					     priv_data);
-		if (!NT_STATUS_IS_OK(status)) {
-			goto done;
-		}
 	}
-done:
-	return result;
+	*presult = result;
+	return status;
 }
 
 static const char *genmeth_to_string(uint32_t genmethod)
@@ -1665,10 +1668,11 @@ static const char *genmeth_to_string(uint32_t genmethod)
 	return result;
 }
 
-static const char* rtpropertycontainer_to_string_raw(TALLOC_CTX *ctx,
-					struct wsp_abstract_state *glob_data,
-					struct wsp_crestriction *restriction,
-					void *priv_data)
+static NTSTATUS rtpropertycontainer_to_string_raw(TALLOC_CTX *ctx,
+				struct wsp_abstract_state *glob_data,
+				struct wsp_crestriction *restriction,
+				void *priv_data,
+				const char **presult)
 {
 	struct wsp_cfullpropspec *prop_spec = get_full_prop(restriction);
 	const char *prop = prop_from_fullprop(ctx, prop_spec);
@@ -1676,6 +1680,7 @@ static const char* rtpropertycontainer_to_string_raw(TALLOC_CTX *ctx,
 	const char *operator = NULL;
 	const char *value = NULL;
 	const char *type = NULL;
+	NTSTATUS status;
 	if (restriction->ultype == RTPROPERTY) {
 		struct wsp_cpropertyrestriction *restrict_prop =
 			&restriction->restriction.cpropertyrestriction;
@@ -1693,24 +1698,29 @@ static const char* rtpropertycontainer_to_string_raw(TALLOC_CTX *ctx,
 		result = talloc_asprintf(ctx, "%s %s %s %s", type, prop, operator,
 					 value);
 	}
-	return result;
+	*presult = result;
+	status = NT_STATUS_OK;
+	return status;
 }
 
-static const char * rtnatlang_to_string(TALLOC_CTX *ctx,
-					struct wsp_abstract_state *glob_data,
-					struct wsp_crestriction *restriction)
+static NTSTATUS rtnatlang_to_string(TALLOC_CTX *ctx,
+				struct wsp_abstract_state *glob_data,
+				struct wsp_crestriction *restriction,
+				const char **presult)
 {
 	struct wsp_cfullpropspec *prop_spec = get_full_prop(restriction);
 	const char *prop = prop_from_fullprop(ctx, prop_spec);
 	struct tracker_detail *detail = get_tracker_detail(prop);
 	const char *result = talloc_strdup(ctx, "");
 	struct wsp_cnatlanguagerestriction *cnat;
+	NTSTATUS status;
 	prop = prop_from_fullprop(ctx, prop_spec);
 	detail = get_tracker_detail(prop);
 	if (restriction->ultype != RTNATLANGUAGE) {
 		DBG_ERR("unexpected type %d, expected RTNATLANGUAGE\n",
 		      restriction->ultype);
-		return result;
+		status = NT_STATUS_UNSUCCESSFUL;
+		goto done;
 	}
 	cnat = &restriction->restriction.cnatlanguagerestriction;
 	if (detail && detail->tracker_id) {
@@ -1718,28 +1728,37 @@ static const char * rtnatlang_to_string(TALLOC_CTX *ctx,
 					 detail->tracker_id,
 					 cnat->pwcsphrase);
 	}
-	return result;
+	status = NT_STATUS_OK;
+done:
+	*presult = result;
+	return status;
 }
 
-static const char * rtnatlang_to_string_raw(TALLOC_CTX *ctx,
+static NTSTATUS rtnatlang_to_string_raw(TALLOC_CTX *ctx,
 					struct wsp_abstract_state *glob_data,
-					struct wsp_crestriction *restriction)
+					struct wsp_crestriction *restriction,
+					const char **presult)
 {
 	struct wsp_cfullpropspec *prop_spec = get_full_prop(restriction);
 	const char *prop = prop_from_fullprop(ctx, prop_spec);
 	const char *result = talloc_strdup(ctx, "");
 	struct wsp_cnatlanguagerestriction *cnat;
+	NTSTATUS status;
 	if (restriction->ultype != RTNATLANGUAGE) {
 		DBG_ERR("unexpected type %d, expected RTNATLANGUAGE\n",
 		      restriction->ultype);
-		return result;
+		status = NT_STATUS_UNSUCCESSFUL;
+		goto done;
 	}
 	cnat = &restriction->restriction.cnatlanguagerestriction;
 	result = talloc_asprintf(ctx,
 				 "RTNATLANGUAGE %s = %s",
 				 prop,
 				 cnat->pwcsphrase);
-	return result;
+	status = NT_STATUS_OK;
+done:
+	*presult = result;
+	return status;
 }
 
 static NTSTATUS filter_term_from_restriction(TALLOC_CTX *ctx,
@@ -1794,8 +1813,15 @@ static NTSTATUS rtreusewhere_to_string(TALLOC_CTX *ctx,
 		DBG_ERR("no whereid => this share is not indexed\n");
 		tmp = talloc_asprintf(ctx, "insert expression for WHEREID = %d",
 				      restriction->restriction.reusewhere.whereid);
-		status = NT_STATUS(0x80070003);
-		goto done;
+		/*
+		 * if glob_data == NULL then we are more than likely being
+		 * called from wsp_to_sparql and we don't want to propagate the
+		 * status for this case
+		 */
+		if (glob_data != NULL) {
+			status = NT_STATUS(0x80070003);
+			goto done;
+		}
 	}
 	status = NT_STATUS_OK;
 done:
@@ -1809,13 +1835,15 @@ done:
  *        its necessary in order to pass back the error regarding whether
  *        the share is indexed or not.
  */
-typedef const char * (*rtprop_cntr_to_str_fn)(TALLOC_CTX *ctx,
+typedef NTSTATUS (*rtprop_cntr_to_str_fn)(TALLOC_CTX *ctx,
 					  struct wsp_abstract_state *glob_data,
 					  struct wsp_crestriction *restriction,
-					  void *priv_data);
-typedef const char * (*natlang_to_str_fn)(TALLOC_CTX *ctx,
-					  struct wsp_abstract_state *glob_data,
-					  struct wsp_crestriction *restriction);
+					  void *priv_data,
+					  const char **result);
+typedef NTSTATUS (*natlang_to_str_fn)(TALLOC_CTX *ctx,
+				      struct wsp_abstract_state *glob_data,
+				      struct wsp_crestriction *restriction,
+				      const char **result);
 typedef NTSTATUS (*reusewhere_to_str_fn)(TALLOC_CTX *ctx,
 					 struct wsp_abstract_state *glob_data,
 					 struct wsp_crestriction *restriction,
@@ -1933,14 +1961,17 @@ static NTSTATUS filter_term_from_restriction(TALLOC_CTX *ctx,
 		}
 		case RTCONTENT:
 		case RTPROPERTY:
-			filter_str = conv_ops->rtprop_cntr_to_str(ctx,
-								  glob_data,
-								  restriction,
-								  priv_data);
+			status = conv_ops->rtprop_cntr_to_str(ctx,
+							      glob_data,
+							      restriction,
+							      priv_data,
+							      &filter_str);
 			break;
 		case RTNATLANGUAGE:
-			filter_str = conv_ops->natlang_to_str(ctx, glob_data,
-							      restriction);
+			status = conv_ops->natlang_to_str(ctx,
+							  glob_data,
+							  restriction,
+							  &filter_str);
 			break;
 		case RTCOERCE_ABSOLUTE: {
 			struct wsp_crestriction *child_restrict =
@@ -2254,18 +2285,21 @@ static const char *op_as_string(struct wsp_crestriction *restriction)
 	return op;
 }
 
-static const char *infix(TALLOC_CTX *ctx,
-			 struct wsp_abstract_state *glob_data,
-			 struct wsp_crestriction *restriction,
-			 void *priv_data);
-static const char *print_restriction(TALLOC_CTX *ctx,
-				     struct wsp_abstract_state *glob_data,
-				     struct wsp_crestriction *restriction,
-				     void *priv_data)
+static NTSTATUS infix(TALLOC_CTX *ctx,
+		      struct wsp_abstract_state *glob_data,
+		      struct wsp_crestriction *restriction,
+		      void *priv_data,
+		      const char **result);
+
+static NTSTATUS print_restriction(TALLOC_CTX *ctx,
+				  struct wsp_abstract_state *glob_data,
+				  struct wsp_crestriction *restriction,
+				  const char** presult,
+				  void *priv_data)
 {
 	const char *result = NULL;
 	const char *tmp;
-	NTSTATUS status;
+	NTSTATUS status = NT_STATUS_OK;
 
 	if (is_operator(restriction)) {
 		result = talloc_strdup(ctx, op_as_string(restriction));
@@ -2273,17 +2307,18 @@ static const char *print_restriction(TALLOC_CTX *ctx,
 		switch(restriction->ultype) {
 			case RTCONTENT:
 			case RTPROPERTY: {
-				tmp = conv_ops->rtprop_cntr_to_str(ctx,
+				status = conv_ops->rtprop_cntr_to_str(ctx,
 								   glob_data,
 								   restriction,
-								   priv_data);
+								   priv_data,
+								   &tmp);
 				if (strlen(tmp)) {
 					result = tmp;
 				}
 				break;
 			}
 			case RTNATLANGUAGE:
-				tmp = conv_ops->natlang_to_str(ctx, glob_data, restriction);
+				status = conv_ops->natlang_to_str(ctx, glob_data, restriction, &tmp);
 				if (strlen(tmp)) {
 					result = tmp;
 				}
@@ -2291,7 +2326,7 @@ static const char *print_restriction(TALLOC_CTX *ctx,
 			case RTCOERCE_ABSOLUTE: {
 				struct wsp_crestriction *child_restrict =
 					restriction->restriction.ccoercionrestriction_abs.childres;
-				result = infix(ctx, glob_data, child_restrict, priv_data);
+				status = infix(ctx, glob_data, child_restrict, priv_data, &result);
 				break;
 			}
 			case RTREUSEWHERE: {
@@ -2307,7 +2342,8 @@ static const char *print_restriction(TALLOC_CTX *ctx,
 			}
 		}
 	}
-	return result;
+	*presult = result;
+	return status;
 }
 
 static bool is_andor(struct wsp_crestriction *restriction)
@@ -2324,18 +2360,20 @@ static bool is_andor(struct wsp_crestriction *restriction)
  * and buggy.
  * TODO: eventually use this instead of homegrown algo in getfilter
  */
-static const char *infix(TALLOC_CTX *ctx, struct  wsp_abstract_state *glob_data,
+static NTSTATUS infix(TALLOC_CTX *ctx, struct  wsp_abstract_state *glob_data,
 			 struct wsp_crestriction *restriction,
-			 void *priv_data)
+			 void *priv_data,
+			 const char **result)
 {
-	const char *foo = NULL;
+	const char *tmp = NULL;
 	const char *token = NULL;
 	const char *left_node = NULL;
 	const char *right_node = NULL;
 	struct wsp_crestriction *left = NULL;
 	struct wsp_crestriction *right = NULL;
+	NTSTATUS status;
 	if (!restriction) {
-		return NULL;
+		return NT_STATUS_UNSUCCESSFUL;
 	}
 	if (is_operator(restriction)) {
 		if (is_andor(restriction)) {
@@ -2351,48 +2389,69 @@ static const char *infix(TALLOC_CTX *ctx, struct  wsp_abstract_state *glob_data,
 			right = restriction->restriction.restriction.restriction;
 		}
 	}
-	left_node = infix(ctx, glob_data, left, priv_data);
-	token = print_restriction(ctx, glob_data, restriction, priv_data);
-	right_node = infix(ctx, glob_data, right, priv_data);
+	if (left) {
+		status = infix(ctx, glob_data, left, priv_data, &left_node);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+	}
+	status = print_restriction(ctx, glob_data, restriction, &token, priv_data);
+	if (!NT_STATUS_IS_OK(status)) {
+		return status;
+	}
+	if (right) {
+		status = infix(ctx, glob_data, right, priv_data, &right_node);
+		if (!NT_STATUS_IS_OK(status)) {
+			return status;
+		}
+	}
 
 	if (is_operator(restriction)) {
 		if (is_andor(restriction) == false && right_node && strlen(right_node)) {
-			foo = talloc_asprintf(ctx, "%s%s",
+			tmp = talloc_asprintf(ctx, "%s%s",
 				token,
 				right_node);
 		} else if (left_node && strlen(left_node) && right_node && strlen(right_node)) {
-			foo = talloc_asprintf(ctx, "(%s %s %s)", left_node,
+			tmp = talloc_asprintf(ctx, "(%s %s %s)", left_node,
 							token, right_node);
 		} else {
-			foo = talloc_asprintf(ctx, "(%s%s)",
+			tmp = talloc_asprintf(ctx, "(%s%s)",
 					left_node ? left_node : "",
 					right_node ? right_node : "");
 		}
 	} else {
-		foo = talloc_asprintf(ctx, "%s%s%s",
+		tmp = talloc_asprintf(ctx, "%s%s%s",
 				left_node ? left_node : "",
 				token ? token : "",
 				right_node ? right_node : "");
 	}
 
-	if (strequal(foo, "()")) {
-		foo = NULL;
+	if (strequal(tmp, "()")) {
+		tmp = NULL;
 	}
-	return foo;
+	*result = tmp;
+	return status;
 }
 
-const char* build_restriction_expression(TALLOC_CTX *ctx,
+NTSTATUS build_restriction_expression(TALLOC_CTX *ctx,
 		       struct wsp_abstract_state *glob_data,
 		       struct wsp_crestrictionarray *restrictarray,
 		       bool convert_props,
+		       const char **restrict_expr,
 		       const char** share)
 {
-	const char * query = talloc_strdup(ctx, "");
+	const char * query = NULL;
+	NTSTATUS status = NT_STATUS_OK;
 	init_conv_ops(!convert_props);
 	if (restrictarray->count) {
-		query = infix(ctx, glob_data, &restrictarray->restrictions[0], share);
+		status = infix(ctx,
+			      glob_data,
+			      &restrictarray->restrictions[0],
+			      share,
+			      &query);
 	}
-	return query;
+	*restrict_expr = query;
+	return status;
 }
 
 static bool can_open_url(struct connection_struct *conn, const char* url)

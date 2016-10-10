@@ -87,11 +87,12 @@ NTSTATUS get_filter(TALLOC_CTX *ctx,
 		    const char **share_scope,
 		    uint32_t *where_id);
 
-const char *build_restriction_expression(TALLOC_CTX *ctx,
-		    			 struct wsp_abstract_state *glob_data,
-					 struct wsp_crestrictionarray *restrictions,
-					 bool convert_props,
-					 const char **share_scope);
+NTSTATUS build_restriction_expression(TALLOC_CTX *ctx,
+		    		      struct wsp_abstract_state *glob_data,
+				      struct wsp_crestrictionarray *restrictions,
+				      bool convert_props,
+				      const char **restrict_expr,
+				      const char **share_scope);
 
 void filter_tracker_rows(struct tracker_row **rows,
 			 struct connection_struct *conn,
