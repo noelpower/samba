@@ -64,7 +64,7 @@ static void print_help(void)
 	DBG_ERR("wsp-to-tracker [-f|-r] -v\n");
 	DBG_ERR("\t-f full prints out the full sparql query\n");
 	DBG_ERR("\t-r restriction, prints out the restriction expression\n");
-	DBG_ERR("\t-n uses new infix expression generator (note: only works with -r option)\n");
+	DBG_ERR("\t-o uses old infix expression generator\n");
 	DBG_ERR("\t-v don't do any conversion to tracker properties from wsp properties\n");
 	DBG_ERR("\t   don't drop any part of the expression, just print it out as you can\n");
 }
@@ -101,6 +101,7 @@ int main(int argc, char *argv[])
 	enum ndr_err_code err;
 	const char *query_str = NULL;
 	const char *share = NULL;
+	const char *restrictionset_expr = NULL;
 	struct wsp_cpmcreatequeryin *query;
 	struct wsp_ccolumnset *projected_col_offsets = NULL;
 	struct wsp_crestrictionarray *restrictionset = NULL;
@@ -113,7 +114,7 @@ int main(int argc, char *argv[])
 	bool raw = false;
 	bool full = false;
 	bool restriction = false;
-	bool new_generator = false;
+	bool new_generator = true;
 
 	NTSTATUS status;
 	TALLOC_CTX *frame = talloc_stackframe();
@@ -121,7 +122,7 @@ int main(int argc, char *argv[])
 		DBG_ERR("failed to allocate stack frame\n");
 		return -1;
 	}
-	while ((c = getopt (argc, argv, "vfrhn")) != -1) {
+	while ((c = getopt (argc, argv, "vfrho")) != -1) {
 		switch (c)
 		{
 			case 'v':
@@ -137,8 +138,8 @@ int main(int argc, char *argv[])
 			case 'r':
 				restriction = true;
 				break;
-			case 'n':
-				new_generator = true;
+			case 'o':
+				new_generator = false;
 				break;
 			case ':':       /* -f or -o without operand */
 				DBG_ERR("Option -%c requires an operand\n",
@@ -188,7 +189,7 @@ int main(int argc, char *argv[])
 	err = parse_blob(ctx, &blob, request, response, true);
 	if (err) {
 		DBG_ERR("failed to parse blob error %d\n", err);
-		result = 1;	
+		result = 1;
 		goto out;
 	}
 	if (request->header.msg != CPMCREATEQUERY) {
@@ -205,9 +206,30 @@ int main(int argc, char *argv[])
 		restrictionset = &query->restrictionarray.restrictionarray;
 	}
 
+	if (new_generator) {
+		restrictionset_expr =
+			build_restriction_expression(ctx,
+						     NULL,
+						     restrictionset,
+						     !raw,
+						     &share);
+	} else {
+		DBG_ERR("using old generator\n");
+		status = get_filter(ctx,
+				    NULL,
+				    restrictionset,
+				    !raw,
+				    &restrictionset_expr,
+				    &share,
+				    &where_id);
+	}
 
+	if (!restrictionset_expr || strlen(restrictionset_expr) == 0) {
+		DBG_ERR("failed to generate restriction expression\n");
+		goto out;
+	}
+//		status = get_filter(ctx, NULL, restrictionset, !raw,  &restrictionset_expr, &share, &where_id);
 	if (full) {
-		const char *restrictionset_expr = NULL;
 		struct binding_result_mapper *result_converter;
 		struct map_data *map_data;
 		struct wsp_ctablecolumn *columns;
@@ -233,7 +255,6 @@ int main(int argc, char *argv[])
 			goto out;
 		}
 
-		status = get_filter(ctx, NULL, restrictionset, !raw,  &restrictionset_expr, &share, &where_id);
 		status = build_tracker_query(ctx,
 				     projected_col_offsets,
 				     restrictionset_expr,
@@ -266,13 +287,8 @@ int main(int argc, char *argv[])
 	}
 	if (restriction) {
 
-		if (new_generator) {
-			DBG_ERR("using new generator\n");
-			query_str = build_restriction_expression(ctx, NULL, restrictionset, !raw, &share);
-		} else {
-			status = get_filter(ctx, NULL, restrictionset, !raw,  &query_str, &share, &where_id);
-		}
-		DBG_ERR("tracker-sparql restriction expression\n\"%s\"\n", query_str);
+		DBG_ERR("tracker-sparql restriction expression\n\"%s\"\n",
+			restrictionset_expr);
 	}
 	result = 0;
 	status = NT_STATUS_OK;
