@@ -6118,3 +6118,176 @@ bool smb2cli_tcon_is_encryption_on(struct smbXcli_tcon *tcon)
 {
 	return tcon->smb2.should_encrypt;
 }
+
+
+struct fsctl_pipe_wait_req
+{
+	int64_t timeout;
+	uint32_t namelength;
+	uint8_t timeout_specified;
+	const char* name;
+};
+
+static bool write_pipe_wait_request_data(
+			struct fsctl_pipe_wait_req *wait_request,
+			DATA_BLOB *output)
+{
+	uint8_t *buf = output->data;
+	uint32_t pos = 0;
+	/* lenght of data up to pipe name */
+	uint32_t min_len = 14;
+	bool result = false;
+
+	if (output->length < min_len) {
+		result = false;
+		goto out;
+	}
+	SBVALS(buf, pos, wait_request->timeout);
+	pos += 8;
+
+	SIVAL(buf, pos, wait_request->namelength);
+	pos +=4;
+
+	if (min_len + wait_request->namelength > output->length) {
+		DEBUG(0,("incorrect buffer len, buffer size is %zu but we require %d\n", output->length, min_len + wait_request->namelength));
+		result =false;
+		goto out;
+	}
+
+	*(buf + pos) = wait_request->timeout_specified;
+	pos++;
+
+	pos++; /* skip padding */
+
+	push_string((buf + pos), wait_request->name,
+		    wait_request->namelength,
+		    STR_UNICODE | STR_NOALIGN);
+	result = true;
+out:
+	return result;
+}
+
+struct smb2cli_wait_pipe_state {
+	struct smbXcli_conn *conn;
+	DATA_BLOB in_input_buffer;
+	DATA_BLOB in_output_buffer;
+};
+
+static void smb2cli_wait_pipe_done(struct tevent_req *subreq);
+
+struct tevent_req *smb2cli_wait_pipe_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct smbXcli_conn *conn,
+					  uint32_t timeout_msec,
+					  struct smbXcli_session *session,
+					  struct smbXcli_tcon *tcon,
+					  int64_t pipe_wait_timeout,
+					  const char *pipe_name)
+{
+	struct tevent_req *req, *subreq;
+	struct smb2cli_wait_pipe_state *state;
+	struct fsctl_pipe_wait_req wait_req;
+	ZERO_STRUCT(wait_req);
+
+	req = tevent_req_create(mem_ctx, &state,
+				struct smb2cli_wait_pipe_state);
+	if (req == NULL) {
+		return NULL;
+	}
+	state->conn = conn;
+	state->in_input_buffer = data_blob_talloc_zero(state, 14 + strlen(pipe_name) * 2);
+	wait_req.timeout = pipe_wait_timeout;
+	wait_req.namelength = strlen(pipe_name) * 2;
+
+	wait_req.timeout_specified = false;
+	wait_req.name = pipe_name;
+
+	if (!write_pipe_wait_request_data(&wait_req, &state->in_input_buffer)) {
+		return tevent_req_post(req, ev);
+	}
+	subreq = smb2cli_ioctl_send(state, ev, conn,
+				    timeout_msec, session, tcon,
+				    UINT64_MAX, /* in_fid_persistent */
+				    UINT64_MAX, /* in_fid_volatile */
+				    FSCTL_PIPE_WAIT,
+				    0, /* in_max_input_length */
+				    &state->in_input_buffer,
+				    0, /* in_max_output_length */
+				    &state->in_output_buffer,
+				    SMB2_IOCTL_FLAG_IS_FSCTL);
+
+	if (tevent_req_nomem(subreq, req)) {
+		return tevent_req_post(req, ev);
+	}
+	tevent_req_set_callback(subreq,
+				smb2cli_wait_pipe_done,
+				req);
+	return req;
+}
+
+static void smb2cli_wait_pipe_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req = tevent_req_callback_data(subreq,
+							  struct tevent_req);
+	struct smb2cli_wait_pipe_state *state =
+	tevent_req_data(req, struct smb2cli_wait_pipe_state);
+	NTSTATUS status;
+
+	DATA_BLOB out_input_buffer = data_blob_null;
+	DATA_BLOB out_output_buffer = data_blob_null;
+
+	status = smb2cli_ioctl_recv(subreq,
+				    state,
+				    &out_input_buffer,
+				    &out_output_buffer);
+	TALLOC_FREE(subreq);
+	if (tevent_req_nterror(req, status)) {
+		return;
+	}
+	tevent_req_done(req);
+}
+
+struct tevent_req *smb1cli_wait_named_pipe_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct smbXcli_conn *conn,
+					  uint32_t timeout_msec,
+					  uint32_t pid,
+					  struct smbXcli_session *session,
+					  struct smbXcli_tcon *tcon,
+					  const char *pipe_name)
+{
+	struct tevent_req *req;
+	uint16_t function[] = {TRANSACT_WAITNAMEDPIPEHANDLESTATE, 0};
+	const char *tmp_pipe_name = pipe_name;
+
+	if (strstr(pipe_name, "\\PIPE\\") != pipe_name) {
+		tmp_pipe_name = talloc_asprintf(mem_ctx,
+						"\\PIPE\\%s",
+						pipe_name);
+	}
+
+	if (tmp_pipe_name == NULL) {
+		return NULL;
+	}
+
+	req = smb1cli_trans_send(mem_ctx, ev,
+				 conn,
+				 SMBtrans,
+				 0, 0, /* *_flags */
+				 0, 0, /* *_flags2 */
+				 timeout_msec,
+				 pid,
+				 tcon,
+				 session,
+				 tmp_pipe_name,
+				 0, 0, 0,
+				 function, 2,
+				 0,
+				 NULL, 0, 0,
+				 NULL,
+				 0,
+				 0);
+
+	return req;
+}
+

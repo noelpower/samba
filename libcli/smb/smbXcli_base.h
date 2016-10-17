@@ -774,5 +774,21 @@ struct tevent_req *smb2cli_echo_send(TALLOC_CTX *mem_ctx,
 NTSTATUS smb2cli_echo_recv(struct tevent_req *req);
 NTSTATUS smb2cli_echo(struct smbXcli_conn *conn,
 		      uint32_t timeout_msec);
+struct tevent_req *smb2cli_wait_pipe_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct smbXcli_conn *conn,
+					  uint32_t timeout_msec,
+					  struct smbXcli_session *session,
+					  struct smbXcli_tcon *tcon,
+					  int64_t pipe_wait_timeout,
+					  const char *pipe_name);
 
+struct tevent_req *smb1cli_wait_named_pipe_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct smbXcli_conn *conn,
+					  uint32_t timeout_msec,
+				    	  uint32_t pid,
+					  struct smbXcli_session *session,
+					  struct smbXcli_tcon *tcon,
+					  const char *pipe_name);
 #endif /* _SMBXCLI_BASE_H_ */
