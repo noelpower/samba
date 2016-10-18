@@ -30,10 +30,13 @@
 #include "libcli/smb/tstream_smbXcli_np.h"
 #include "libcli/smb2/smb2.h"
 #include "libcli/smb2/smb2_calls.h"
+#include "libcli/smb/smbXcli_base.h"
 #include "smb_composite/smb_composite.h"
 #include "lib/cmdline/popt_common.h"
 #include "libcli/resolve/resolve.h"
 #include "librpc/rpc/dcerpc_raw.h"
+#include <tevent.h>
+#include <util/tevent_ntstatus.h>
 
 #define MSG_HDR_SIZE 16
 
@@ -1391,6 +1394,88 @@ static NTSTATUS connect_server_smb2(TALLOC_CTX *mem_ctx,
 	return status;
 }
 
+struct wait_ctx {
+	bool finished;
+	NTSTATUS status;
+};
+
+static void wait_pipe_done(struct tevent_req *subreq);
+static NTSTATUS wait_for_pipe(TALLOC_CTX *mem_ctx,
+			      struct tevent_context *ev_ctx,
+			      bool smb2_or_greater,
+			      struct wsp_client_ctx *ctx,
+			      const char *pipe_name)
+{
+	struct tevent_req *req, *subreq;
+	struct wait_ctx *state;
+	req = tevent_req_create(mem_ctx, &state,
+				struct wait_ctx);
+	if (req == NULL) {
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+
+
+	if (smb2_or_greater) {
+		struct smb2_tree *tree = ctx->tree;
+		subreq =
+			smb2cli_wait_pipe_send(
+				req,
+				ev_ctx,
+				tree->session->transport->conn,
+				tree->session->transport->options.request_timeout,
+				tree->session->smbXcli,
+				tree->smbXcli,
+				0,
+				pipe_name);
+	} else {
+		struct smbcli_state *cli = ctx->cli;
+		struct smbcli_tree *tree = cli->tree;
+		/* WHY isn't the tid set already here ? */
+		smb1cli_tcon_set_id(tree->smbXcli, tree->tid);
+		subreq = smb1cli_wait_named_pipe_send(state, ev_ctx,
+						tree->session->transport->conn,
+						cli->options.request_timeout,
+						tree->session->pid,
+						tree->session->smbXcli,
+						tree->smbXcli,
+						pipe_name);
+	}
+	if (tevent_req_nomem(subreq, req)) {
+		TALLOC_FREE(req);
+		return NT_STATUS_UNSUCCESSFUL;
+	}
+	tevent_req_set_callback(subreq,
+				wait_pipe_done,
+				req);
+
+	while (!state->finished) {
+		if (tevent_loop_once(ev_ctx) != 0) {
+			return NT_STATUS_UNSUCCESSFUL;
+		}
+	}
+	return state->status;
+}
+
+static void wait_pipe_done(struct tevent_req *subreq)
+{
+	struct tevent_req *req =
+	tevent_req_callback_data(subreq, struct tevent_req);
+	struct wait_ctx *state =
+		tevent_req_data(req,
+		struct wait_ctx);
+	bool has_error;
+	has_error = tevent_req_is_nterror(subreq, &state->status);
+	state->finished = true;
+
+	TALLOC_FREE(subreq);
+
+	if (has_error) {
+		tevent_req_nterror(req, state->status);
+		return;
+	}
+	tevent_req_done(req);
+}
+
 NTSTATUS wsp_server_connect(TALLOC_CTX *mem_ctx,
 			    const char *servername,
 			    struct tevent_context *ev_ctx,
@@ -1419,7 +1504,7 @@ NTSTATUS wsp_server_connect(TALLOC_CTX *mem_ctx,
 	}
 	if (!NT_STATUS_IS_OK(status)) {
 		DBG_ERR("failed to connect to server status: %s)\n",
-		      nt_errstr(status));
+			nt_errstr(status));
 		return status;
 	}
 	p = dcerpc_pipe_init(mem_ctx, ev_ctx);
@@ -1429,6 +1514,16 @@ NTSTATUS wsp_server_connect(TALLOC_CTX *mem_ctx,
 		return NT_STATUS_UNSUCCESSFUL;
 	}
 
+	status = wait_for_pipe(mem_ctx,
+			       ev_ctx,
+			       smb2_or_greater,
+			       ctx,
+			       "MsFteWds");
+	if (!NT_STATUS_IS_OK(status)) {
+		DBG_ERR("wait for pipe failed: %s)\n",
+			nt_errstr(status));
+		return status;
+	}
 	if (smb2_or_greater) {
 		status = dcerpc_pipe_open_smb2(p, ctx->tree, "MsFteWds");
 	} else {
