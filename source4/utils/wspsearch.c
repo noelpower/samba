@@ -21,7 +21,7 @@
 #include "includes.h"
 #include "bin/default/librpc/gen_ndr/ndr_wsp.h"
 #include "bin/default/librpc/gen_ndr/ndr_wsp_data.h"
-#include "librpc/rpc/wsp_helper.h"
+#include "librpc/wsp/wsp_helper.h"
 #include "libcli/wsp/wsp_cli.h"
 #include "lib/cmdline/popt_common.h"
 #include "lib/events/events.h"
