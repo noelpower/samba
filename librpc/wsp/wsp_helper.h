@@ -21,6 +21,8 @@
 #ifndef __LIBRPC_WSP_HELPER_H__
 #define __LIBRPC_WSP_HELPER_H__
 
+#include "bin/default/librpc/gen_ndr/misc.h"
+
 struct safearraybound;
 struct wsp_cfullpropspec;
 struct wsp_cpmgetrowsin;
@@ -29,7 +31,6 @@ struct wsp_cpmsetbindingsin;
 struct wsp_cbasestoragevariant;
 struct wsp_crestriction;
 struct wsp_hyper;
-struct GUID;
 uint32_t calc_array_size(struct safearraybound *bounds, uint32_t ndims);
 
 struct full_propset_info {
@@ -42,6 +43,13 @@ struct full_propset_info {
 	bool can_col_be_indexed;
 	uint16_t max_size;
 };
+
+struct full_guid_propset {
+	struct GUID guid;
+	const struct full_propset_info *prop_info;
+};
+
+extern const struct full_guid_propset full_propertyset[];
 
 char *prop_from_fullprop(TALLOC_CTX *ctx, struct wsp_cfullpropspec *fullprop);
 const struct full_propset_info *get_prop_info(const char *prop_name);
