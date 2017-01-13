@@ -136,20 +136,10 @@ def getVtype(prop):
 	return result
 
 def generateSourceCode(propMap, outputFile):
-	source = "struct full_propset_info {\n"
-	source = source + "\tuint32_t id;\n"
-	source = source + "\tconst char *name;\n"
-	source = source + "\tuint16_t vtype;\n"
-	source = source + "\tbool extra_info;\n"
-	source = source + "\tbool in_inverted_index;\n"
-	source = source + "\tbool is_column;\n"
-	source = source + "\tbool can_col_be_indexed;\n"
-	source = source + "\tuint16_t max_size;\n"
-	source = source + "};\n\n"
-	source = source + "struct full_guid_propset {\n"
-	source = source + "\tstruct GUID guid;\n"
-	source = source + "\tconst struct full_propset_info *prop_info;\n"
-	source = source + "};\n\n"
+	source = "#include \"includes.h\"\n"
+	source = "#include \"librpc/wsp/wsp_helper.h\"\n"
+	source = "#include \"bin/default/librpc/gen_ndr/ndr_wsp.h\"\n"
+	source = source + "\n"
 	count = 0
 	for guid in propMap.keys():
 		varName = "guid_properties_%d"%count
@@ -163,24 +153,25 @@ def generateSourceCode(propMap, outputFile):
 				extraInfo = "true"
 			source = source + "\t{0x%x,\"%s\",%s, %s, %s, %s, %s, %s},\n"%(props.propId, props.propName, getVtype(props), extraInfo, getBoolString(props.inInvertedIndex),getBoolString(props.isColumn), getBoolString(props.canColumnBeIndexed), props.maxSize)
 
-		source = source + "\t{0,NULL}\n};\n\n"
+		source = source + "\t{0,NULL,0,false,false,false,false,0}\n};\n\n"
 
 	source = source + "\n"
 
-	source = source + "static struct full_guid_propset full_propertyset[] = {\n";
+	source = source + "const struct full_guid_propset full_propertyset[] = {\n";
 	for guid in propMap.keys():
 		guidBytes = parseGuid(guid)
 		varName = GuidToPropMapLocation[guid]
 		source = source + "\t{" + guidBytes + "," + varName + "},\n"
 
+	source = source + "\t{{0, 0, 0, {0, 0}, {0, 0, 0, 0, 0, 0}}," + "NULL" + "},\n"
 	source = source + "};\n"
 	outputFile.write(source)
 
 def main ():
 	inputFile = None
-	outputFile = None
+	outputSrcFile = None
 	extraPropsLimitedInfo = None
-	if len(sys.argv) > 2:
+	if len(sys.argv) > 3:
 		inputFile =  sys.argv[1]
 		outputFile =  sys.argv[2]
 		# this file contains extra properties (that don't have the full
@@ -191,7 +182,7 @@ def main ():
 		print ("usage: %s property-csv outfile optionalLimitedInfoProps"%(sys.argv[0]))
 		sys.exit(1)
 	fileContents = open(inputFile,"r")
-	outputSource = open(outputFile + ".c","w")
+	outputSource = open(outputFile,"w")
 	parseCSV(fileContents, True)
 	fileContents.close()
 
