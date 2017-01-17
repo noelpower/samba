@@ -23,7 +23,7 @@
 
 #include "includes.h"
 #include "libcli/wsp/wsp_aqs.h"
-#include "libcli/wsp/wsp_aqs_parser.h"
+#include "libcli/wsp/wsp_aqs_parser.tab.h"
 #include "libcli/wsp/wsp_aqs_lexer.h"
 
 static int yyerror(t_select_stmt **stmt, yyscan_t scanner, const char *msg)
@@ -39,9 +39,6 @@ typedef void* yyscan_t;
 #endif
 
 }
-
-%output  "wsp_aqs_parser.c"
-%defines "wsp_aqs_parser.h"
 
 %define api.pure
 %lex-param   { yyscan_t scanner }

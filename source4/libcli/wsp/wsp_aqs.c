@@ -19,7 +19,7 @@
 
 #include "includes.h"
 #include "libcli/wsp/wsp_aqs.h"
-#include "libcli/wsp/wsp_aqs_parser.h"
+#include "libcli/wsp/wsp_aqs_parser.tab.h"
 #include "libcli/wsp/wsp_aqs_lexer.h"
 #include "librpc/wsp/wsp_helper.h"
 #include <stdio.h>
