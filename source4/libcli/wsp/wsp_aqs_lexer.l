@@ -23,13 +23,13 @@
 
 #include "includes.h"
 #include "libcli/wsp/wsp_aqs.h"
-#include "libcli/wsp/wsp_aqs_parser.h"
+#include "libcli/wsp/wsp_aqs_parser.tab.h"
+
 
 #include <stdio.h>
 
 %}
 
-%option outfile="wsp_aqs_lexer.c" header-file="wsp_aqs_lexer.h"
 %option warn nodefault
 
 %option reentrant noyywrap never-interactive nounistd

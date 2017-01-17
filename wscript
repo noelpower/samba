@@ -6,7 +6,7 @@ blddir = 'bin'
 APPNAME='samba'
 VERSION=None
 
-import sys, os, tempfile
+import sys, os, tempfile, bison, flex
 sys.path.insert(0, srcdir+"/buildtools/wafsamba")
 import wafsamba, Options, samba_dist, samba_git, Scripting, Utils, samba_version
 
@@ -226,9 +226,10 @@ def configure(conf):
         if conf.check_cc(cflags='', ldflags='-Wl,-z,relro,-z,now', mandatory=need_relro,
                          msg="Checking compiler for full RELRO support"):
             conf.env['ENABLE_RELRO'] = True
-
+    if Options.options.with_wsp:
+        bison.detect(conf)
+        flex.detect(conf)
     conf.SAMBA_CONFIG_H('include/config.h')
-
 def etags(ctx):
     '''build TAGS file using etags'''
     import Utils
