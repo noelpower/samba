@@ -10,36 +10,9 @@ static const uint32_t BUFFER_SIZE = 20000;
 static bool get_blob_from_file(TALLOC_CTX *ctx, const char *message_bytes_file,
 			DATA_BLOB *blob)
 {
-	bool result = true;
-	FILE *f=NULL;
-	int i = 0;
-
-	uint8_t *buffer = talloc_array(ctx, uint8_t, BUFFER_SIZE);
-	/* cheap and nasty read */
-	f = fopen(message_bytes_file,"rb");
-
-	if (!f) {
-		DBG_ERR("Failed to open %s for reading\n", message_bytes_file);
-		result = false;
-		goto out;
-	}
-	while (!feof(f)) {
-		if (i > BUFFER_SIZE) {
-			DBG_ERR("buffer too small read %d bytes from %s\n", i, message_bytes_file);
-		}
-		fread(buffer+i,1,1,f);
-		i++;
-
-	}
-	i--;
-	DBG_ERR("%d bytes from %s\n", i, message_bytes_file);
-out:
-	if (f) {
-		fclose(f);
-	}
-	blob->data = buffer;
-	blob->length = i;
-	return result;
+	char *content = file_load(message_bytes_file, &blob->length, BUFFER_SIZE, ctx);
+	blob->data = (uint8_t*)content;
+	return content != NULL;
 }
 
 static enum ndr_err_code parse_blob(TALLOC_CTX *ctx, DATA_BLOB *blob,
