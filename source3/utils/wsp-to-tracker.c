@@ -208,7 +208,10 @@ int main(int argc, const char *argv[])
 		uint32_t  ncolumns;
 		struct wsp_csortset *sortset;
 		if (query->csortsetpresent) {
-			sortset = &query->sortset.sortset;
+			struct wsp_cingroupsortaggregset* aggregset;
+			aggregset =
+				&query->sortset.groupsortaggregsets.sortsets[0];
+			sortset = &aggregset->sortaggregset;
 		}
 		result_converter = talloc_zero(ctx,
 					       struct binding_result_mapper);

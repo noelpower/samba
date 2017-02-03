@@ -383,7 +383,12 @@ static struct tevent_req *handle_createquery(TALLOC_CTX *ctx,
 		restrictionset = &query->restrictionarray.restrictionarray;
 	}
 	if (query->csortsetpresent) {
-		sort_orders = &query->sortset.sortset;
+		if (query->sortset.groupsortaggregsets.ccount) {
+			struct wsp_cingroupsortaggregset* aggregset;
+			aggregset =
+				&query->sortset.groupsortaggregsets.sortsets[0];
+			sort_orders = &aggregset->sortaggregset;
+		}
 	}
 	if (query->ccategorizationsetpresent) {
 		groupings = &query->ccategorizationset.ccategorizationset;
