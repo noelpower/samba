@@ -947,17 +947,20 @@ void create_querysearch_request(TALLOC_CTX * ctx,
 	/* handle rest */
 	createquery->csortsetpresent = 1;
 	if (createquery->csortsetpresent) {
-		struct wsp_csortset *sortset = &createquery->sortset.sortset;
 		/* sort on first column */
 		struct wsp_csort data[] = {
 			{0x00000000, 0x00000000, 0x00000000, 0x00001809},
 		};
-		/*
-		 * not sure if this is important of not, exists in captured
-		 * messages, seems like it is, if we don't have the values below we get an error
-		 */
-		sortset->unknown1 = 1;
-		sortset->unknown2 = 0;
+		struct wsp_csortset *sortset;
+		struct wsp_cingroupsortaggregsets *aggregsets;
+
+		aggregsets = &createquery->sortset.groupsortaggregsets;
+		aggregsets->ccount = 1;
+		aggregsets->sortsets =
+			talloc_zero_array(ctx,
+					  struct wsp_cingroupsortaggregset,
+					  aggregsets->ccount);
+		sortset = &aggregsets->sortsets[0].sortaggregset;
 		sortset->count = ARRAY_SIZE(data);
 		fill_sortarray(ctx, &sortset->sortarray, data,sortset->count);
 	}
