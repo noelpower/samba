@@ -348,9 +348,6 @@ interface msftewds
 	} wsp_csort;
 
 	typedef [public] struct {
-		/* !! weirdly 8 bytes seems to be junk or unknown here. */
-		uint32 unknown1;
-		uint32 unknown2;
 		uint32 count;
 		wsp_csort sortarray[count];
 	} wsp_csortset;
@@ -486,11 +483,20 @@ interface msftewds
 		wsp_caggregsortkey sortkeys[ccount];
 	} wsp_csortaggregset;
 
+	typedef [public, nodiscriminant, switch_type(uint8)] union {
+		/*
+		 * if type == GroupIdValue then wsp_cbasestoragevariant
+		 * ingroupid is present
+		 */
+		[case(0x03)] wsp_cbasestoragevariant ingroupid;
+		[default];
+	} wsp_opt_ingroupid;
+
 	typedef [public] struct {
 		uint8 type;
 		[flag(NDR_ALIGN4)]    DATA_BLOB _pad1;
-		wsp_cbasestoragevariant ingroupid;
-		wsp_csortaggregset sortaggregset;
+		wsp_opt_ingroupid opt_groupid;
+		wsp_csortset sortaggregset;
 	} wsp_cingroupsortaggregset;
 
 	typedef [public] struct {
@@ -675,8 +681,8 @@ interface msftewds
 
 	typedef [public,nodiscriminant,switch_type(uint8)] union {
 		[case(0)];
-		[default] wsp_csortset sortset;
-	}opt_wsp_csortset;
+		[default] wsp_cingroupsortaggregsets groupsortaggregsets;
+	}opt_wsp_cingroupsortaggregsets;
 
 	typedef [public,nodiscriminant,switch_type(uint8)] union {
 		[case(0)];
@@ -709,7 +715,7 @@ interface msftewds
 		[switch_is(crestrictionpresent)] opt_wsp_crestrictionarray restrictionarray;
 		uint8 csortsetpresent;
 		/*[flag(NDR_ALIGN4)] DATA_BLOB _pad2;*/
-		[switch_is(csortsetpresent)] opt_wsp_csortset sortset;
+		[switch_is(csortsetpresent)] opt_wsp_cingroupsortaggregsets sortset;
 		uint8 ccategorizationsetpresent;
 		/*[flag(NDR_ALIGN4)] DATA_BLOB _pad3;*/
 		[switch_is(ccategorizationsetpresent)] opt_wsp_ccategorizationset ccategorizationset;
