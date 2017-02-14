@@ -575,3 +575,95 @@ fail:
 	TALLOC_FREE(frame);
 	return status;
 }
+
+struct tevent_req *smb1cli_ioctl_pipe_wait_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct smbXcli_conn *conn,
+					  uint32_t timeout_msec,
+					  uint32_t pid,
+					  struct smbXcli_session *session,
+					  struct smbXcli_tcon *tcon,
+					  const char *pipe_name)
+{
+	struct tevent_req *req;
+	uint16_t function[] = {TRANSACT_WAITNAMEDPIPEHANDLESTATE, 0};
+	const char *tmp_pipe_name = pipe_name;
+
+	if (strstr(pipe_name, "\\PIPE\\") != pipe_name) {
+		tmp_pipe_name = talloc_asprintf(mem_ctx,
+						"\\PIPE\\%s",
+						pipe_name);
+	}
+
+	if (tmp_pipe_name == NULL) {
+		return NULL;
+	}
+
+	req = smb1cli_trans_send(mem_ctx, ev,
+				 conn,
+				 SMBtrans,
+				 0, 0, /* *_flags */
+				 0, 0, /* *_flags2 */
+				 timeout_msec,
+				 pid,
+				 tcon,
+				 session,
+				 tmp_pipe_name,
+				 0, 0, 0,
+				 function, 2,
+				 0,
+				 NULL, 0, 0,
+				 NULL,
+				 0,
+				 0);
+
+	return req;
+}
+
+NTSTATUS smb1cli_ioctl_pipe_wait_recv(struct tevent_req *req)
+{
+	return tevent_req_simple_recv_ntstatus(req);
+}
+
+NTSTATUS smb1cli_ioctl_pipe_wait(struct smbXcli_conn *conn,
+				 uint32_t timeout_msec,
+				 uint32_t pid,
+				 struct smbXcli_session *session,
+				 struct smbXcli_tcon *tcon,
+				 const char *pipe_name,
+				 uint64_t pipe_wait_timeout)
+{
+	TALLOC_CTX *frame = talloc_stackframe();
+	struct tevent_context *ev = NULL;
+	struct tevent_req *req = NULL;
+	NTSTATUS status = NT_STATUS_NO_MEMORY;
+
+	if (smbXcli_conn_has_async_calls(conn)) {
+		/*
+		 * Can't use sync call while an async call is in flight
+		 */
+		status = NT_STATUS_INVALID_PARAMETER_MIX;
+		goto fail;
+	}
+
+	ev = samba_tevent_context_init(frame);
+	if (ev == NULL) {
+		goto fail;
+	}
+
+	req = smb1cli_ioctl_pipe_wait_send(frame, ev, conn, timeout_msec,
+					   pid, session, tcon,
+					   pipe_name);
+	if (req == NULL) {
+		goto fail;
+	}
+	if (!tevent_req_poll_ntstatus(req, ev, &status)) {
+		goto fail;
+	}
+
+	status = smb1cli_ioctl_pipe_wait_recv(req);
+
+fail:
+	TALLOC_FREE(frame);
+	return status;
+}
