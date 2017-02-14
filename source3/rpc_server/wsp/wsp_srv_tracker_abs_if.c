@@ -372,6 +372,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 	}
 
 	if (!share) {
+		DBG_ERR("No share passed in the RestrictionSet\n");
 		status = NT_STATUS_INVALID_PARAMETER;
 		can_query_now = false;
 		goto err_out;
@@ -424,6 +425,8 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 				     &sparql_query);
 
 	if (!NT_STATUS_IS_OK(status)) {
+		DBG_ERR("error %s when creating tracker query\n",
+		        nt_errstr(status));
 		can_query_now = false;
 		goto err_out;
 	}
@@ -447,6 +450,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 						p->session_info,
 						&query_info->tracker_ctx);
 		if (!subreq) {
+			DBG_ERR("failed to create tracker subquery\n");
 			can_query_now = false;
 			status = NT_STATUS_UNSUCCESSFUL;
 			goto err_out;

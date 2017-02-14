@@ -289,7 +289,10 @@ cursor_cb(GObject *object, GAsyncResult *res, gpointer user_data)
 		query_info->num_cols =
 			tracker_sparql_cursor_get_n_columns(query_info->cur_cursor);
 	}
-	DEBUG(0,("more_results %d limit %d %d\n", more_results, query_info->results_limit, !(query_info->results_limit && query_info->num_rows >= query_info->results_limit)));
+	DBG_INFO("more_results %d limit %d %d\n", more_results,
+		 query_info->results_limit,
+		 !(query_info->results_limit &&
+		   query_info->num_rows >= query_info->results_limit));
 	if (more_results &&
 	    !(query_info->cache_results == false && query_info->results_limit &&
 	      query_info->num_rows >= query_info->results_limit)) {
