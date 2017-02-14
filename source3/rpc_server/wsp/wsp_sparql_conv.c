@@ -1618,6 +1618,11 @@ static const char* get_sort_string(TALLOC_CTX *ctx,
 	struct wsp_csort *order = sorting->sortarray;
 	const char* sort_str = NULL;
 	ZERO_STRUCT(sort_by);
+
+	if (sorting->count == 0) {
+		DBG_DEBUG("function called with a sorting->count of zero,"
+			  " returning NULL");
+	}
 	for (i = 0; i < sorting->count; i++) {
 		int pid_index = order[i].pidcolimn;
 		struct wsp_cfullpropspec *prop_spec =
@@ -1631,7 +1636,7 @@ static const char* get_sort_string(TALLOC_CTX *ctx,
 			int j;
 			if (order[i].dworder != QUERY_SORTASCEND &&
 				order[i].dworder != QUERY_DESCEND) {
-				DBG_ERR("Uknown sort order %d\n", order[i].dworder);
+				DBG_ERR("Unknown sort order %d\n", order[i].dworder);
 				return NULL;
 			}
 			if (sort_str == NULL) {
@@ -1739,6 +1744,7 @@ NTSTATUS build_tracker_query(TALLOC_CTX *ctx,
 	if (sorting) {
 		sort_str = get_sort_string(ctx, pidmapper, sorting);
 		if (sort_str == NULL) {
+			DBG_DEBUG("a SortSet was given, but no sort_str created\n");
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 	}

@@ -448,7 +448,11 @@ static void handle_createquery_done(struct tevent_req *subreq)
 		if (has_error == false) {
 			if(state->query_params_error) {
 				status = NT_STATUS(state->query_params_error);
+				DBG_DEBUG("copy error %s 0x%x from subrequest %p\n",
+					  nt_errstr(status), NT_STATUS_V(status), subreq);
 			} else {
+				DBG_DEBUG("can_query_now=false, returning"
+					  "NT_STATUS_INVALID_PARAMETER\n");
 				status = NT_STATUS_INVALID_PARAMETER;
 			}
 		}
