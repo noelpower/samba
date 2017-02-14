@@ -911,4 +911,22 @@ NTSTATUS smb2cli_ioctl_pipe_wait(struct smbXcli_conn *conn,
 				 const char *pipe_name,
 				 uint64_t pipe_wait_timeout);
 
+struct tevent_req *smb1cli_ioctl_pipe_wait_send(TALLOC_CTX *mem_ctx,
+					  struct tevent_context *ev,
+					  struct smbXcli_conn *conn,
+					  uint32_t timeout_msec,
+					  uint32_t pid,
+					  struct smbXcli_session *session,
+					  struct smbXcli_tcon *tcon,
+					  const char *pipe_name);
+
+NTSTATUS smb1cli_ioctl_pipe_wait_recv(struct tevent_req *req);
+
+NTSTATUS smb1cli_ioctl_pipe_wait(struct smbXcli_conn *conn,
+				 uint32_t timeout_msec,
+				 uint32_t pid,
+				 struct smbXcli_session *session,
+				 struct smbXcli_tcon *tcon,
+				 const char *pipe_name,
+				 uint64_t pipe_wait_timeout);
 #endif /* _SMBXCLI_BASE_H_ */
