@@ -77,7 +77,8 @@ NTSTATUS build_tracker_query(TALLOC_CTX *ctx,
 			     const char **query);
 
 
-const char * get_where_restriction_string(struct wsp_abstract_state *wsp_abstract_state, uint32_t id);
+bool lookup_where_id(struct wsp_abstract_state *glob_data, uint32_t where_id,
+		     const char **filter_out, const char **share_out);
 
 NTSTATUS build_restriction_expression(TALLOC_CTX *ctx,
 				      struct wsp_abstract_state *glob_data,
