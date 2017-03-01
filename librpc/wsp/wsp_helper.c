@@ -487,13 +487,8 @@ const char *variant_as_string(TALLOC_CTX *ctx,
 		case VT_FILETIME: {
 			uint64_t val;
 			wsp_hyper_to_uint64(&value->vvalue.vt_ui8, &val);
-			if (value->vtype == VT_I8) {
-				result = talloc_asprintf(ctx, "%" PRId64,
+			result = talloc_asprintf(ctx, "%" PRId64,
 						 val);
-			} else {
-				result = talloc_asprintf(ctx, "%" PRIu64,
-						 val);
-			}
 			break;
 		}
 		case VT_LPWSTR:
