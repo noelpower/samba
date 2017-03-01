@@ -487,7 +487,7 @@ const char *variant_as_string(TALLOC_CTX *ctx,
 		case VT_FILETIME: {
 			uint64_t val;
 			wsp_hyper_to_uint64(&value->vvalue.vt_ui8, &val);
-			result = talloc_asprintf(ctx, "0x%" PRIx64,
+			result = talloc_asprintf(ctx, "%" PRId64,
 						 val);
 			break;
 		}
