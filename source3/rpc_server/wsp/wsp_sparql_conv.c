@@ -1845,6 +1845,12 @@ static NTSTATUS print_restriction(TALLOC_CTX *ctx,
 				break;
 			}
 			case RTREUSEWHERE: {
+				if (priv_data) {
+					struct filter_data *data =
+						(struct filter_data *)priv_data;
+					data->where_id =
+						restriction->restriction.reusewhere.whereid;
+				}
 				tmp = NULL;
 				status = rtreusewhere_to_string(ctx,
 							glob_data,
