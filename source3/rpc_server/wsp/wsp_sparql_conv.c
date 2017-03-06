@@ -1543,15 +1543,17 @@ done:
 }
 
 static NTSTATUS rtreusewhere_to_string(TALLOC_CTX *ctx,
-					struct wsp_abstract_state *glob_data,
-					struct wsp_crestriction *restriction,
-					const char **result)
+				       struct wsp_abstract_state *glob_data,
+				       struct wsp_crestriction *restriction,
+				       void *priv_data,
+				       const char **result)
 {
-	int where_id;
-	const char *tmp;
 	NTSTATUS status;
-	*result = talloc_strdup(ctx, "");
-	where_id = restriction->restriction.reusewhere.whereid;
+	bool ok = false;
+	char *where_filter = NULL;
+	char *share_scope = NULL;
+	struct filter_data *data = (struct filter_data *) priv_data;
+	int where_id = restriction->restriction.reusewhere.whereid;
 	DBG_DEBUG("SHARE reusewhereid %d\n", where_id);
 	/*
 	* Try get a previously built whereid string,
@@ -1569,38 +1571,35 @@ static NTSTATUS rtreusewhere_to_string(TALLOC_CTX *ctx,
 	* is now 'released' thus we won't find the associated
 	* restriction set of that 'nested' whereid
 	*/
-	tmp = get_where_restriction_string(glob_data, where_id);
-	if (tmp && strlen(tmp)) {
-		*result = talloc_strdup(ctx, tmp);
-		DBG_NOTICE("detected a where id RTREUSEWHERE id=%d result = %s\n",
-		      restriction->restriction.reusewhere.whereid,
-		      tmp ? tmp : "None");
+	ok = lookup_where_id(glob_data, where_id, &where_filter, &share_scope);
+	if (ok && strlen(where_filter) && strlen(share_scope)) {
+		*result = talloc_strdup(ctx, where_filter);
+		data->where_id = where_id;
+		data->share_scope = talloc_strdup(ctx, share_scope);
+		DBG_NOTICE("detected a where id RTREUSEWHERE id=%d"
+			   " result = %s, share = %s\n",
+			   where_id, where_filter, share_scope);
 	} else {
 		/*
 		* this assumes the reason we have
 		* no whereid string is because there is no
 		* index, it's a pretty valid assumption
 		* but I think getting the status from
-		* maybe get_where_restriction_string might
-		* be better
+		* maybe lockup_where_id() might be better
 		*/
 		DBG_ERR("no whereid => this share is not indexed\n");
-		tmp = talloc_asprintf(ctx, "insert expression for WHEREID = %d",
-				      restriction->restriction.reusewhere.whereid);
+		*result = talloc_asprintf(ctx, "insert expression for"
+					  " WHEREID = %d", where_id);
 		/*
 		 * if glob_data == NULL then we are more than likely being
 		 * called from wsp_to_sparql and we don't want to propagate the
 		 * status for this case
 		 */
 		if (glob_data != NULL) {
-			status = NT_STATUS(0x80070003);
-			goto done;
+			return NT_STATUS(0x80070003);
 		}
 	}
-	status = NT_STATUS_OK;
-done:
-	*result = tmp;
-	return status;
+	return NT_STATUS_OK;
 }
 
 static const char* get_sort_string(TALLOC_CTX *ctx,
@@ -1613,6 +1612,11 @@ static const char* get_sort_string(TALLOC_CTX *ctx,
 	struct wsp_csort *order = sorting->sortarray;
 	const char* sort_str = NULL;
 	ZERO_STRUCT(sort_by);
+
+	if (sorting->count == 0) {
+		DBG_DEBUG("function called with a sorting->count of zero,"
+			  " returning NULL");
+	}
 	for (i = 0; i < sorting->count; i++) {
 		int pid_index = order[i].pidcolimn;
 		struct wsp_cfullpropspec *prop_spec =
@@ -1626,7 +1630,7 @@ static const char* get_sort_string(TALLOC_CTX *ctx,
 			int j;
 			if (order[i].dworder != QUERY_SORTASCEND &&
 				order[i].dworder != QUERY_DESCEND) {
-				DBG_ERR("Uknown sort order %d\n", order[i].dworder);
+				DBG_ERR("Unknown sort order %d\n", order[i].dworder);
 				return NULL;
 			}
 			if (sort_str == NULL) {
@@ -1734,6 +1738,7 @@ NTSTATUS build_tracker_query(TALLOC_CTX *ctx,
 	if (sorting) {
 		sort_str = get_sort_string(ctx, pidmapper, sorting);
 		if (sort_str == NULL) {
+			DBG_DEBUG("a SortSet was given, but no sort_str created\n");
 			return NT_STATUS_INVALID_PARAMETER;
 		}
 	}
@@ -1845,17 +1850,11 @@ static NTSTATUS print_restriction(TALLOC_CTX *ctx,
 				break;
 			}
 			case RTREUSEWHERE: {
-				if (priv_data) {
-					struct filter_data *data =
-						(struct filter_data *)priv_data;
-					data->where_id =
-						restriction->restriction.reusewhere.whereid;
-				}
 				tmp = NULL;
-				status = rtreusewhere_to_string(ctx,
-							glob_data,
-							restriction,
-							&tmp);
+				status = rtreusewhere_to_string(ctx, glob_data,
+								restriction,
+								priv_data,
+								&tmp);
 				if (tmp && strlen(tmp)) {
 					result = tmp;
 				}

@@ -205,8 +205,8 @@ static int destroy_query_data(struct query_data *query_info)
 	return 0;
 }
 
-const char * get_where_restriction_string(struct wsp_abstract_state *glob_data,
-					  uint32_t id)
+bool lookup_where_id(struct wsp_abstract_state *glob_data, uint32_t where_id,
+		     const char **filter_out, const char **share_out)
 {
 	/* search all open queries for where id */
 	struct query_data *item = NULL;
@@ -214,11 +214,14 @@ const char * get_where_restriction_string(struct wsp_abstract_state *glob_data,
 		item = glob_data->queries.items;
 	}
 	for (;item;item = item->next) {
-		if (item->query_id == id && item->where_filter) {
-			return item->where_filter;
+		if (item->query_id == where_id &&
+		    item->where_filter && item->share) {
+			*filter_out = item->where_filter;
+			*share_out = item->share;
+			return true;
 		}
 	}
-	return NULL;
+	return false;
 }
 
 static bool is_catalog_available(struct wspd_client_state *client_data,
@@ -348,17 +351,6 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 		}
 	}
 
-	if (!share) {
-		if (where_id) {
-			struct query_data *tmp_data =
-				find_query_info(where_id,
-						glob_data);
-			if (tmp_data) {
-				share = tmp_data->share;
-			}
-		}
-	}
-
 	*CursorHandlesList = talloc_zero_array(query_info, uint32_t,
 					       query_info->ncursors);
 	/* allocate cursor id(s) */
@@ -376,6 +368,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 	}
 
 	if (!share) {
+		DBG_ERR("No share passed in the RestrictionSet\n");
 		status = NT_STATUS_INVALID_PARAMETER;
 		can_query_now = false;
 		goto err_out;
@@ -417,6 +410,8 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 				     &sparql_query);
 
 	if (!NT_STATUS_IS_OK(status)) {
+		DBG_ERR("error %s when creating tracker query\n",
+		        nt_errstr(status));
 		can_query_now = false;
 		goto err_out;
 	}
@@ -440,6 +435,7 @@ static struct tevent_req *run_new_query_send(TALLOC_CTX *ctx,
 						p->session_info,
 						&query_info->tracker_ctx);
 		if (!subreq) {
+			DBG_ERR("failed to create tracker subquery\n");
 			can_query_now = false;
 			status = NT_STATUS_UNSUCCESSFUL;
 			goto err_out;
