@@ -25,7 +25,8 @@
 """Functions for setting up a Samba configuration."""
 
 __docformat__ = "restructuredText"
-
+from samba.compat import string_types
+from samba.compat import urllib_quote
 from base64 import b64encode
 import errno
 import os
@@ -37,7 +38,6 @@ import logging
 import time
 import uuid
 import socket
-import urllib
 import string
 import tempfile
 import samba.dsdb
@@ -1070,7 +1070,7 @@ def setup_encrypted_secrets_key(path):
     finally:
         os.umask(umask_original)
 
-    with os.fdopen(fd, 'w') as f:
+    with os.fdopen(fd, 'wb') as f:
         key = samba.generate_random_bytes(16)
         f.write(key)
 
@@ -1144,7 +1144,7 @@ def setup_self_join(samdb, admin_session_info, names, fill, machinepass,
               "INVOCATIONID": invocationid,
               "NETBIOSNAME": names.netbiosname,
               "DNSNAME": "%s.%s" % (names.hostname, names.dnsdomain),
-              "MACHINEPASS_B64": b64encode(machinepass.encode('utf-16-le')),
+              "MACHINEPASS_B64": b64encode(machinepass.encode('utf-16-le')).decode('utf8'),
               "DOMAINSID": str(domainsid),
               "DCRID": str(dc_rid),
               "SAMBA_VERSION_STRING": version,
@@ -1171,7 +1171,7 @@ def setup_self_join(samdb, admin_session_info, names, fill, machinepass,
                 "INVOCATIONID": invocationid,
                 "NETBIOSNAME": names.netbiosname,
                 "DNSNAME": "%s.%s" % (names.hostname, names.dnsdomain),
-                "MACHINEPASS_B64": b64encode(machinepass.encode('utf-16-le')),
+                "MACHINEPASS_B64": b64encode(machinepass.encode('utf-16-le')).decode('utf8'),
                 "DOMAINSID": str(domainsid),
                 "DCRID": str(dc_rid),
                 "SAMBA_VERSION_STRING": version,
@@ -1367,7 +1367,7 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
     else:
         domainguid_line = ""
 
-    descr = b64encode(get_domain_descriptor(names.domainsid))
+    descr = b64encode(get_domain_descriptor(names.domainsid)).decode('utf8')
     setup_add_ldif(samdb, setup_path("provision_basedn.ldif"), {
             "DOMAINDN": names.domaindn,
             "DOMAINSID": str(names.domainsid),
@@ -1390,7 +1390,7 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
     # If we are setting up a subdomain, then this has been replicated in, so we don't need to add it
     if fill == FILL_FULL:
         logger.info("Adding configuration container")
-        descr = b64encode(get_config_descriptor(names.domainsid))
+        descr = b64encode(get_config_descriptor(names.domainsid)).decode('utf8')
         setup_add_ldif(samdb, setup_path("provision_configuration_basedn.ldif"), {
                 "CONFIGDN": names.configdn,
                 "DESCRIPTOR": descr,
@@ -1420,12 +1420,12 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
     if fill == FILL_FULL:
         logger.info("Setting up sam.ldb configuration data")
 
-        partitions_descr = b64encode(get_config_partitions_descriptor(names.domainsid))
-        sites_descr = b64encode(get_config_sites_descriptor(names.domainsid))
-        ntdsquotas_descr = b64encode(get_config_ntds_quotas_descriptor(names.domainsid))
-        protected1_descr = b64encode(get_config_delete_protected1_descriptor(names.domainsid))
-        protected1wd_descr = b64encode(get_config_delete_protected1wd_descriptor(names.domainsid))
-        protected2_descr = b64encode(get_config_delete_protected2_descriptor(names.domainsid))
+        partitions_descr = b64encode(get_config_partitions_descriptor(names.domainsid)).decode('utf8')
+        sites_descr = b64encode(get_config_sites_descriptor(names.domainsid)).decode('utf8')
+        ntdsquotas_descr = b64encode(get_config_ntds_quotas_descriptor(names.domainsid)).decode('utf8')
+        protected1_descr = b64encode(get_config_delete_protected1_descriptor(names.domainsid)).decode('utf8')
+        protected1wd_descr = b64encode(get_config_delete_protected1wd_descriptor(names.domainsid)).decode('utf8')
+        protected2_descr = b64encode(get_config_delete_protected2_descriptor(names.domainsid)).decode('utf8')
 
         if "2008" in schema.base_schema:
             # exclude 2012-specific changes if we're using a 2008 schema
@@ -1475,7 +1475,7 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
             })
 
     logger.info("Adding users container")
-    users_desc = b64encode(get_domain_users_descriptor(names.domainsid))
+    users_desc = b64encode(get_domain_users_descriptor(names.domainsid)).decode('utf8')
     setup_add_ldif(samdb, setup_path("provision_users_add.ldif"), {
             "DOMAINDN": names.domaindn,
             "USERS_DESCRIPTOR": users_desc
@@ -1484,7 +1484,7 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
     setup_modify_ldif(samdb, setup_path("provision_users_modify.ldif"), {
             "DOMAINDN": names.domaindn})
     logger.info("Adding computers container")
-    computers_desc = b64encode(get_domain_computers_descriptor(names.domainsid))
+    computers_desc = b64encode(get_domain_computers_descriptor(names.domainsid)).decode('utf8')
     setup_add_ldif(samdb, setup_path("provision_computers_add.ldif"), {
             "DOMAINDN": names.domaindn,
             "COMPUTERS_DESCRIPTOR": computers_desc
@@ -1494,11 +1494,11 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
         setup_path("provision_computers_modify.ldif"), {
             "DOMAINDN": names.domaindn})
     logger.info("Setting up sam.ldb data")
-    infrastructure_desc = b64encode(get_domain_infrastructure_descriptor(names.domainsid))
-    lostandfound_desc = b64encode(get_domain_delete_protected2_descriptor(names.domainsid))
-    system_desc = b64encode(get_domain_delete_protected1_descriptor(names.domainsid))
-    builtin_desc = b64encode(get_domain_builtin_descriptor(names.domainsid))
-    controllers_desc = b64encode(get_domain_controllers_descriptor(names.domainsid))
+    infrastructure_desc = b64encode(get_domain_infrastructure_descriptor(names.domainsid)).decode('utf8')
+    lostandfound_desc = b64encode(get_domain_delete_protected2_descriptor(names.domainsid)).decode('utf8')
+    system_desc = b64encode(get_domain_delete_protected1_descriptor(names.domainsid)).decode('utf8')
+    builtin_desc = b64encode(get_domain_builtin_descriptor(names.domainsid)).decode('utf8')
+    controllers_desc = b64encode(get_domain_controllers_descriptor(names.domainsid)).decode('utf8')
     setup_add_ldif(samdb, setup_path("provision.ldif"), {
         "CREATTIME": str(samba.unix2nttime(int(time.time()))),
         "DOMAINDN": names.domaindn,
@@ -1517,14 +1517,14 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
 
     # If we are setting up a subdomain, then this has been replicated in, so we don't need to add it
     if fill == FILL_FULL:
-        managedservice_descr = b64encode(get_managed_service_accounts_descriptor(names.domainsid))
+        managedservice_descr = b64encode(get_managed_service_accounts_descriptor(names.domainsid)).decode('utf8')
         setup_modify_ldif(samdb,
                           setup_path("provision_configuration_references.ldif"), {
                 "CONFIGDN": names.configdn,
                 "SCHEMADN": names.schemadn})
 
         logger.info("Setting up well known security principals")
-        protected1wd_descr = b64encode(get_config_delete_protected1wd_descriptor(names.domainsid))
+        protected1wd_descr = b64encode(get_config_delete_protected1wd_descriptor(names.domainsid)).decode('utf8')
         setup_add_ldif(samdb, setup_path("provision_well_known_sec_princ.ldif"), {
             "CONFIGDN": names.configdn,
             "WELLKNOWNPRINCIPALS_DESCRIPTOR": protected1wd_descr,
@@ -1541,8 +1541,8 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
         setup_add_ldif(samdb, setup_path("provision_users.ldif"), {
             "DOMAINDN": names.domaindn,
             "DOMAINSID": str(names.domainsid),
-            "ADMINPASS_B64": b64encode(adminpass.encode('utf-16-le')),
-            "KRBTGTPASS_B64": b64encode(krbtgtpass.encode('utf-16-le'))
+            "ADMINPASS_B64": b64encode(adminpass.encode('utf-16-le')).decode('utf8'),
+            "KRBTGTPASS_B64": b64encode(krbtgtpass.encode('utf-16-le')).decode('utf8')
             }, controls=["relax:0", "provision:0"])
 
         logger.info("Setting up self join")
@@ -1562,7 +1562,9 @@ def fill_samdb(samdb, lp, names, logger, policyguid,
         ntds_dn = "CN=NTDS Settings,%s" % names.serverdn
         names.ntdsguid = samdb.searchone(basedn=ntds_dn,
             attribute="objectGUID", expression="", scope=ldb.SCOPE_BASE)
-        assert isinstance(names.ntdsguid, str)
+
+        names.ntdsguid = names.ntdsguid.decode('utf8')
+        assert isinstance(names.ntdsguid, string_types)
 
     return samdb
 
@@ -1920,7 +1922,7 @@ def provision_fill(samdb, secrets_ldb, logger, names, paths,
             msg = ldb.Message(ldb.Dn(samdb,
                                      samdb.searchone("distinguishedName",
                                                      expression="samAccountName=%s$" % names.netbiosname,
-                                                     scope=ldb.SCOPE_SUBTREE)))
+                                                     scope=ldb.SCOPE_SUBTREE).decode('utf8')))
             msg["msDS-SupportedEncryptionTypes"] = ldb.MessageElement(
                 elements=kerberos_enctypes, flags=ldb.FLAG_MOD_REPLACE,
                 name="msDS-SupportedEncryptionTypes")
@@ -1938,8 +1940,8 @@ def provision_fill(samdb, secrets_ldb, logger, names, paths,
                      backend_store=backend_store)
 
         domainguid = samdb.searchone(basedn=samdb.get_default_basedn(),
-                                     attribute="objectGUID")
-        assert isinstance(domainguid, str)
+                                     attribute="objectGUID").decode('utf8')
+        assert isinstance(domainguid, string_types)
 
     lastProvisionUSNs = get_last_provision_usn(samdb)
     maxUSN = get_max_usn(samdb, str(names.rootdn))
@@ -2189,7 +2191,7 @@ def provision(logger, session_info, smbconf=None,
     if paths.sysvol and not os.path.exists(paths.sysvol):
         os.makedirs(paths.sysvol, 0o775)
 
-    ldapi_url = "ldapi://%s" % urllib.quote(paths.s4_ldapi_path, safe="")
+    ldapi_url = "ldapi://%s" % urllib_quote(paths.s4_ldapi_path, safe="")
 
     schema = Schema(domainsid, invocationid=invocationid,
         schemadn=names.schemadn, base_schema=base_schema)

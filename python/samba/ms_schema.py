@@ -21,6 +21,7 @@ from __future__ import print_function
 import re
 import base64
 import uuid
+from samba.compat import string_types
 
 bitFields = {}
 
@@ -172,7 +173,7 @@ def fix_dn(dn):
 
 def __convert_bitfield(key, value):
     """Evaluate the OR expression in 'value'"""
-    assert(isinstance(value, str))
+    assert(isinstance(value, string_types))
 
     value = value.replace("\n ", "")
     value = value.replace(" ", "")
@@ -194,7 +195,7 @@ def __write_ldif_one(entry):
     out = []
 
     for l in entry:
-        if isinstance(l[1], str):
+        if isinstance(l[1], string_types):
             vl = [l[1]]
         else:
             vl = l[1]
@@ -246,8 +247,7 @@ def __transform_entry(entry, objectClass):
             if not l[2]:
                 l[1] = oMObjectClassBER[l[1].strip()]
                 l[2] = True
-
-        if isinstance(l[1], str):
+        if isinstance(l[1], string_types):
             l[1] = fix_dn(l[1])
 
         if key == 'dn':
@@ -286,8 +286,9 @@ def __parse_schema_file(filename, objectClass):
     """Load and transform a schema file."""
 
     out = []
+    from io import open
+    f = open(filename, "r", encoding='latin-1')
 
-    f = open(filename, "rU")
     for entry in __read_raw_entries(f):
         out.append(__write_ldif_one(__transform_entry(entry, objectClass)))
 

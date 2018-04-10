@@ -47,7 +47,7 @@ def get_fsmo_roleowner(samdb, roledn, role):
         raise
 
     if 'fSMORoleOwner' in res[0]:
-        master_owner = (ldb.Dn(samdb, res[0]["fSMORoleOwner"][0]))
+        master_owner = (ldb.Dn(samdb, res[0]["fSMORoleOwner"][0].decode('utf8')))
     else:
         master_owner = None
 

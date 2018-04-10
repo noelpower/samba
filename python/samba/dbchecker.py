@@ -144,6 +144,7 @@ class dbcheck(object):
 
         for nc in self.ncs:
             try:
+                nc = nc.decode('utf8')
                 dn = self.samdb.get_wellknown_dn(ldb.Dn(self.samdb, nc),
                                                  dsdb.DS_GUID_DELETED_OBJECTS_CONTAINER)
                 self.deleted_objects_containers.append(dn)
@@ -178,13 +179,13 @@ class dbcheck(object):
         res = self.samdb.search(base=ldb.Dn(self.samdb, self.samdb.get_serverName()),
                                 scope=ldb.SCOPE_BASE, attrs=["serverReference"])
         # 2. Get server reference
-        self.server_ref_dn = ldb.Dn(self.samdb, res[0]['serverReference'][0])
+        self.server_ref_dn = ldb.Dn(self.samdb, res[0]['serverReference'][0].decode('utf8'))
 
         # 3. Get RID Set
         res = self.samdb.search(base=self.server_ref_dn,
                                 scope=ldb.SCOPE_BASE, attrs=['rIDSetReferences'])
         if "rIDSetReferences" in res[0]:
-            self.rid_set_dn = ldb.Dn(self.samdb, res[0]['rIDSetReferences'][0])
+            self.rid_set_dn = ldb.Dn(self.samdb, res[0]['rIDSetReferences'][0].decode('utf8'))
         else:
             self.rid_set_dn = None
 
@@ -1178,7 +1179,7 @@ newSuperior: %s""" % (str(from_dn), str(to_rdn), str(to_base)))
             obj[attrname] = ldb.MessageElement(vals, 0, attrname)
 
         for val in obj[attrname]:
-            dsdb_dn = dsdb_Dn(self.samdb, val, syntax_oid)
+            dsdb_dn = dsdb_Dn(self.samdb, val.decode('utf8'), syntax_oid)
 
             # all DNs should have a GUID component
             guid = dsdb_dn.dn.get_extended_component("GUID")

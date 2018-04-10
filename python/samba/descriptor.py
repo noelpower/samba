@@ -413,7 +413,7 @@ def get_wellknown_sds(samdb):
                            attrs=["namingContexts"])
 
     for nc in current[0]["namingContexts"]:
-
+        nc = nc.decode('utf8')
         dnsforestdn = ldb.Dn(samdb, "DC=ForestDnsZones,%s" % (str(samdb.get_root_basedn())))
         if ldb.Dn(samdb, nc) == dnsforestdn:
             c = (ldb.Dn(samdb, "%s" % str(dnsforestdn)), get_dns_partition_descriptor)

@@ -247,12 +247,12 @@ def setup_dns_partitions(samdb, domainsid, domaindn, forestdn, configdn,
 
     setup_add_ldif(samdb, setup_path("provision_dnszones_partitions.ldif"), {
         "ZONE_DN": domainzone_dn,
-        "SECDESC"      : b64encode(descriptor)
+        "SECDESC"      : b64encode(descriptor).decode('utf8')
         })
     if fill_level != FILL_SUBDOMAIN:
         setup_add_ldif(samdb, setup_path("provision_dnszones_partitions.ldif"), {
             "ZONE_DN": forestzone_dn,
-            "SECDESC"      : b64encode(descriptor)
+            "SECDESC"      : b64encode(descriptor).decode('utf8')
         })
 
     domainzone_guid = get_domainguid(samdb, domainzone_dn)
@@ -267,8 +267,8 @@ def setup_dns_partitions(samdb, domainsid, domaindn, forestdn, configdn,
         "ZONE_DNS": domainzone_dns,
         "CONFIGDN": configdn,
         "SERVERDN": serverdn,
-        "LOSTANDFOUND_DESCRIPTOR": b64encode(protected2_desc),
-        "INFRASTRUCTURE_DESCRIPTOR": b64encode(protected1_desc),
+        "LOSTANDFOUND_DESCRIPTOR": b64encode(protected2_desc).decode('utf8'),
+        "INFRASTRUCTURE_DESCRIPTOR": b64encode(protected1_desc).decode('utf8'),
         })
     setup_modify_ldif(samdb, setup_path("provision_dnszones_modify.ldif"), {
         "CONFIGDN": configdn,
@@ -287,8 +287,8 @@ def setup_dns_partitions(samdb, domainsid, domaindn, forestdn, configdn,
             "ZONE_DNS": forestzone_dns,
             "CONFIGDN": configdn,
             "SERVERDN": serverdn,
-            "LOSTANDFOUND_DESCRIPTOR": b64encode(protected2_desc),
-            "INFRASTRUCTURE_DESCRIPTOR": b64encode(protected1_desc),
+            "LOSTANDFOUND_DESCRIPTOR": b64encode(protected2_desc).decode('utf8'),
+            "INFRASTRUCTURE_DESCRIPTOR": b64encode(protected1_desc).decode('utf8'),
         })
         setup_modify_ldif(samdb, setup_path("provision_dnszones_modify.ldif"), {
             "CONFIGDN": configdn,
