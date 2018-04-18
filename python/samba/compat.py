@@ -45,5 +45,5 @@ else:
     text_type = unicode
 
     # alias
-    import cStringIO
-    StringIO = cStringIO.StringIO
+    import StringIO
+    StringIO = StringIO.StringIO
