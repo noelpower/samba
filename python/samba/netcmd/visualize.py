@@ -35,6 +35,7 @@ from ldb import SCOPE_BASE, SCOPE_SUBTREE, LdbError
 import time
 from samba.kcc import KCC
 from samba.kcc.kcc_utils import KCCError
+from samba.compat import text_type
 from io import open
 COMMON_OPTIONS = [
     Option("-H", "--URL", help="LDB URL for database or target server",
@@ -51,7 +52,7 @@ COMMON_OPTIONS = [
            choices=['yes', 'no', 'auto']),
     Option("--color-scheme", help=("use this colour scheme "
                                    "(implies --color=yes)"),
-           choices=COLOUR_SETS.keys()),
+           choices=list(COLOUR_SETS.keys())),
     Option("-S", "--shorten-names",
            help="don't print long common suffixes",
            action='store_true', default=False),
@@ -110,7 +111,7 @@ class GraphCommand(Command):
         encoding = None
         if utf8:
             encoding = 'utf8'
-        if isinstance(s, str):
+        if not isinstance(s, text_type):
             s = s.decode('utf8')
         if fn is None or fn == '-':
             # we're just using stdout (a.k.a self.outf)
@@ -434,7 +435,7 @@ class cmd_ntdsconn(GraphCommand):
             for msg in res:
                 msgdn = str(msg.dn)
                 dest_dn = msgdn[msgdn.index(',') + 1:]
-                attested_edges.append((msg['fromServer'][0],
+                attested_edges.append((msg['fromServer'][0].decode('utf8'),
                                        dest_dn, ntds_dn))
 
         # now we overlay all the graphs and generate styles accordingly
@@ -455,7 +456,7 @@ class cmd_ntdsconn(GraphCommand):
             if not talk_to_remote:
                 # If we are not talking to remote servers, we list all
                 # the connections.
-                graph_edges = edges.keys()
+                graph_edges = list(edges.keys())
                 title = 'NTDS Connections known to %s' % local_dsa_dn
                 epilog = ''
 
