@@ -166,7 +166,10 @@ def colour_hash(x):
     """Generate a randomish but consistent darkish colour based on the
     given object."""
     from hashlib import md5
-    c = int(md5(str(x)).hexdigest()[:6], base=16) & 0x7f7f7f
+    tmp_str = str(x)
+    if isinstance(tmp_str, text_type):
+        tmp_str = tmp_str.encode('utf8')
+    c = int(md5(tmp_str).hexdigest()[:6], base=16) & 0x7f7f7f
     return '#%06x' % c
 
 
@@ -405,7 +408,7 @@ class cmd_ntdsconn(GraphCommand):
                 res = local_kcc.samdb.search(dsa_dn,
                                              scope=SCOPE_BASE,
                                              attrs=["dNSHostName"])
-                dns_name = res[0]["dNSHostName"][0]
+                dns_name = res[0]["dNSHostName"][0].decode('utf8')
                 try:
                     samdb = self.get_db("ldap://%s" % dns_name, sambaopts,
                                         credopts)
