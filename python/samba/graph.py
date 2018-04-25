@@ -39,8 +39,8 @@ def reformat_graph_label(s):
             if '-' in p[2:20]:
                 q, p = p.split('-', 1)
             else:
-                n = len(p) / 12
-                b = len(p) / n
+                n = len(p) // 12
+                b = len(p) // n
                 q, p = p[:b], p[b:]
             pieces.append(q + '-')
         if p:
