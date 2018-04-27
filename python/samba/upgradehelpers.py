@@ -725,7 +725,7 @@ def findprovisionrange(samdb, basedn):
 
         for o in obj.array:
             # like a timestamp but with the resolution of 1 minute
-            minutestamp =_glue.nttime2unix(o.originating_change_time)/60
+            minutestamp =_glue.nttime2unix(o.originating_change_time) // 60
             hash_ts = hash_id.get(str(o.originating_invocation_id))
 
             if hash_ts is None:
