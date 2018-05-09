@@ -1549,7 +1549,7 @@ def create_ou(ldb, instance_id):
         ldb.add({"dn":          ou.split(',', 1)[1],
                  "objectclass": "organizationalunit"})
     except LdbError as e:
-        (status, _) = e
+        (status, _) = e.args
         # ignore already exists
         if status != 68:
             raise
@@ -1557,7 +1557,7 @@ def create_ou(ldb, instance_id):
         ldb.add({"dn":          ou,
                  "objectclass": "organizationalunit"})
     except LdbError as e:
-        (status, _) = e
+        (status, _) = e.args
         # ignore already exists
         if status != 68:
             raise
@@ -1607,7 +1607,7 @@ def generate_traffic_accounts(ldb, instance_id, number, password):
             create_machine_account(ldb, instance_id, netbios_name, password)
             added += 1
         except LdbError as e:
-            (status, _) = e
+            (status, _) = e.args
             if status == 68:
                 break
             else:
@@ -1623,7 +1623,7 @@ def generate_traffic_accounts(ldb, instance_id, number, password):
             create_user_account(ldb, instance_id, username, password)
             added += 1
         except LdbError as e:
-            (status, _) = e
+            (status, _) = e.args
             if status == 68:
                 break
             else:
@@ -1704,7 +1704,7 @@ def generate_users(ldb, instance_id, number, password):
             create_user_account(ldb, instance_id, username, password)
             users += 1
         except LdbError as e:
-            (status, _) = e
+            (status, _) = e.args
             # Stop if entry exists
             if status == 68:
                 break
@@ -1728,7 +1728,7 @@ def generate_groups(ldb, instance_id, number):
             create_group(ldb, instance_id, name)
             groups += 1
         except LdbError as e:
-            (status, _) = e
+            (status, _) = e.args
             # Stop if entry exists
             if status == 68:
                 break
@@ -1743,7 +1743,7 @@ def clean_up_accounts(ldb, instance_id):
     try:
         ldb.delete(ou, ["tree_delete:1"])
     except LdbError as e:
-        (status, _) = e
+        (status, _) = e.args
         # ignore does not exist
         if status != 32:
             raise
