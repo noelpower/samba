@@ -1799,7 +1799,7 @@ static PyObject *py_ldb_schema_format_value(PyLdbObject *self, PyObject *args)
 		Py_RETURN_NONE;
 	}
 
-	ret = PyBytes_FromStringAndSize((const char *)new_val.data, new_val.length);
+	ret = PyStr_FromStringAndSize((const char *)new_val.data, new_val.length);
 
 	talloc_free(mem_ctx);
 
