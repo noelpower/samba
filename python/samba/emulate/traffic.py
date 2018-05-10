@@ -46,6 +46,7 @@ from samba.dsdb import UF_WORKSTATION_TRUST_ACCOUNT, UF_PASSWD_NOTREQD
 from samba.dsdb import UF_NORMAL_ACCOUNT
 from samba.dcerpc.misc import SEC_CHAN_WKSTA
 from samba import gensec
+from samba.compat import binary_type
 
 SLEEP_OVERHEAD = 3e-4
 
@@ -331,7 +332,7 @@ class ReplayContext(object):
         self.last_netlogon_bad        = False
         self.last_samlogon_bad        = False
         self.generate_ldap_search_tables()
-        self.next_conversation_id = itertools.count().next
+        self.next_conversation_id = next(itertools.count())
 
     def generate_ldap_search_tables(self):
         session = system_session()
@@ -365,7 +366,7 @@ class ReplayContext(object):
         # for k, v in self.dn_map.items():
         #     print >>sys.stderr, k, len(v)
 
-        for k, v in dn_map.items():
+        for k in list(dn_map.keys()):
             if k[-3:] != ',DC':
                 continue
             p = k[:-3]
@@ -426,8 +427,8 @@ class ReplayContext(object):
            than that requested, but not significantly.
         """
         if not failed_last_time:
-            if (self.badpassword_frequency > 0 and
-               random.random() < self.badpassword_frequency):
+            if (self.badpassword_frequency and self.badpassword_frequency > 0
+                and random.random() < self.badpassword_frequency):
                 try:
                     f(bad)
                 except:
@@ -696,7 +697,7 @@ class ReplayContext(object):
     def get_authenticator(self):
         auth = self.machine_creds.new_client_authenticator()
         current  = netr_Authenticator()
-        current.cred.data = [ord(x) for x in auth["credential"]]
+        current.cred.data = [x if isinstance(x, int) else ord(x) for x in auth["credential"]]
         current.timestamp = auth["timestamp"]
 
         subsequent = netr_Authenticator()
@@ -1639,9 +1640,12 @@ def create_machine_account(ldb, instance_id, netbios_name, machinepass):
 
     ou = ou_name(ldb, instance_id)
     dn = "cn=%s,%s" % (netbios_name, ou)
-    utf16pw = unicode(
-        '"' + machinepass.encode('utf-8') + '"', 'utf-8'
-    ).encode('utf-16-le')
+    if isinstance(machinepass, binary_type):
+        utf16pw = machinepass.decode('utf8')
+    else:
+        utf16pw = machinepass
+    utf16pw = ('"%s"' % utf16pw).encode('utf-16-le')
+
     start = time.time()
     ldb.add({
         "dn": dn,
@@ -1659,9 +1663,11 @@ def create_user_account(ldb, instance_id, username, userpass):
     """Create a user account via ldap."""
     ou = ou_name(ldb, instance_id)
     user_dn = "cn=%s,%s" % (username, ou)
-    utf16pw = unicode(
-        '"' + userpass.encode('utf-8') + '"', 'utf-8'
-    ).encode('utf-16-le')
+    if isinstance(userpass, binary_type):
+        utf16pw = userpass.decode('utf8')
+    else:
+        utf16pw = userpass
+    utf16pw = ('"%s"' % utf16pw).encode('utf-16-le')
     start = time.time()
     ldb.add({
         "dn": user_dn,
