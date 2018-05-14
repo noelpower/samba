@@ -580,13 +580,21 @@ static PyObject *py_dsdb_DsReplicaAttribute(PyObject *self, PyObject *args)
 
 		for (i = 0; i < el->num_values; i++) {
 			PyObject *item = PyList_GetItem(el_list, i);
-			if (!(PyStr_Check(item) || PyUnicode_Check(item))) {
-				PyErr_Format(PyExc_TypeError, "ldif_elements should be strings");
+			if (!IsPy3BytesOrString(item)) {
+				PyErr_Format(PyExc_TypeError, "ldif_elements should be strings or bytes");
 				talloc_free(tmp_ctx);
 				return NULL;
 			}
-			el->values[i].data = (uint8_t *)PyStr_AsUTF8AndSize(item, &_size);
-			el->values[i].length = _size;
+			if (!IsPy3Bytes(item)) {
+				el->values[i].data =
+					(uint8_t *)PyStr_AsUTF8AndSize(item,
+								       &_size);
+				el->values[i].length = _size;
+			} else {
+				el->values[i].data =
+					(uint8_t *)PyBytes_AsString(item);
+				el->values[i].length = PyBytes_Size(item);
+			}
 		}
 	}
 
