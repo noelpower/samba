@@ -2169,7 +2169,7 @@ static bool do_section(const char *pszSectionName, void *userdata)
 	/* check for multiple global sections */
 	if (lp_ctx->bInGlobalSection) {
 		DEBUG(4, ("Processing section \"[%s]\"\n", pszSectionName));
-		return true;
+		goto out;
 	}
 
 	/* if we have a current service, tidy it up before moving on */
@@ -2188,10 +2188,11 @@ static bool do_section(const char *pszSectionName, void *userdata)
 								   pszSectionName))
 		    == NULL) {
 			DEBUG(0, ("Failed to add a new service\n"));
-			return false;
+			bRetval = false;
+			goto out;
 		}
 	}
-
+out:
 	return bRetval;
 }
 
