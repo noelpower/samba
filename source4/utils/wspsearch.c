@@ -495,6 +495,50 @@ out:
 
 const char *default_column = "System.ItemUrl";
 
+static bool is_valid_kind(const char *kind)
+{
+	const char* kinds[] = {"calendar",
+		"communication",
+		"contact",
+		"document",
+		"email",
+		"feed",
+		"folder",
+		"game",
+		"instantMessage",
+		"journal",
+		"link",
+		"movie",
+		"music",
+		"note",
+		"picture",
+		"program",
+		"recordedtv",
+		"searchfolder",
+		"task",
+		"video",
+		"webhistory"};
+	char* search_kind = NULL;
+	int i;
+	bool found = false;
+	search_kind = strlower_talloc(NULL, kind);
+	if (search_kind == NULL) {
+		DBG_ERR("couldn't convert %s to lower case\n",
+				search_kind);
+		return NULL;
+	}
+	for (i=0; i<ARRAY_SIZE(kinds); i++) {
+		if (strequal(search_kind, kinds[i])) {
+			found = true;
+			break;
+		}
+	}
+	if (found == false) {
+		DBG_ERR("Invalid kind %s\n", kind);
+	}
+	TALLOC_FREE(search_kind);
+	return found;
+}
 static char * build_default_sql(TALLOC_CTX *ctx,
 				const char *kind,
 				const char *phrase,
@@ -507,6 +551,9 @@ static char * build_default_sql(TALLOC_CTX *ctx,
 		"  AND NOT System.Shell.OmitFromView:true", location);
 
 	if (kind) {
+		if (!is_valid_kind(kind)) {
+			return NULL;
+		}
 		sql = talloc_asprintf(ctx, "System.Kind:%s AND %s",
 					kind, sql);
 	}
