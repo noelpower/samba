@@ -816,7 +816,7 @@ void dcerpc_ncacn_accept(struct tevent_context *ev_ctx,
 		struct name_pipe_server_details *pipe_details =
 			get_pipe_server_details(name);
 		if (pipe_details) {
-			pipe_details->msg_mode;
+			file_type = pipe_details->msg_mode;
 		}
 		subreq = tstream_npa_accept_existing_send(ncacn_conn,
 							  ncacn_conn->ev_ctx,
