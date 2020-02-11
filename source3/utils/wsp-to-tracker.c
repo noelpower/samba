@@ -4,6 +4,8 @@
 #include "bin/default/librpc/gen_ndr/ndr_wsp_data.h"
 #include "rpc_server/wsp/wsp_sparql_conv.h"
 #include <unistd.h>
+#include "libcli/wsp/wsp_aqs.h"
+#include "libcli/wsp/wsp_cli.h"
 
 static const uint32_t BUFFER_SIZE = 20000;
 
@@ -62,7 +64,7 @@ int main(int argc, const char *argv[])
 	int result;
 	TALLOC_CTX *ctx = talloc_init(NULL);
 	struct wsp_request *request;
-	struct wsp_response *response;	
+	struct wsp_response *response;
 	enum ndr_err_code err;
 	const char *query_str = NULL;
 	const char *share = NULL;
@@ -78,10 +80,15 @@ int main(int argc, const char *argv[])
 	bool raw = false;
 	bool full = false;
 	bool restriction = false;
-	const char *infile;
+	const char *infile = NULL;
+	char* full_query = NULL;
+	t_select_stmt *select_stmt = NULL;
+
 	poptContext pc;
 	struct poptOption long_options[] = {
 		POPT_AUTOHELP
+		{"query",	'q', POPT_ARG_STRING, &full_query, 'q', "specify a more complex query", "query" },
+		{"input",	'i', POPT_ARG_STRING, &infile, 'i', "specify binary file with query message content", "input" },
 		{"full",	'f', POPT_ARG_NONE,	NULL, 'f', "prints out the full sparql query", "full" },
 		{"restriction",	'r', POPT_ARG_NONE, 	NULL, 'r', "prints out the restriction expression only", "restriction"},
 		{"verbose",	'v', POPT_ARG_NONE, 	NULL, 'v', "doesn't do any conversion to tracker properties, doesn't drop any part of the expression, just prints out what it can", "verbose" },
@@ -106,7 +113,6 @@ int main(int argc, const char *argv[])
 	pc = poptGetContext("wsp-to-sparql", argc, argv, long_options,
 			    0);
 
-	poptSetOtherOptionHelp(pc, "binary msg file");
 	while ((c = poptGetNextOpt(pc)) != -1) {
 		switch (c)
 		{
@@ -122,15 +128,19 @@ int main(int argc, const char *argv[])
 		}
 	}
 
-	if(!poptPeekArg(pc)) {
+	if (infile == NULL) {
+		infile = talloc_strdup(frame, poptGetArg(pc));
+	}
+	if ((full_query == NULL && infile == NULL)
+	|| (full_query != NULL && infile != NULL)) {
+		fprintf(stderr,
+			"Either --query or --input must be specified\n");
 		poptPrintUsage(pc, stderr, 0);
 		return -1;
 	}
 
-	infile = talloc_strdup(frame, poptGetArg(pc));
-	if (!infile) {
-		poptPrintUsage(pc, stderr, 0);
-		return -1;
+	if (full_query) {
+		select_stmt = get_wsp_sql_tree(full_query);
 	}
 
 	if (full && restriction) {
@@ -148,27 +158,33 @@ int main(int argc, const char *argv[])
 	}
 	poptFreeContext(pc);
 
-	request = talloc(ctx, struct wsp_request);
-	response = talloc(ctx, struct wsp_response);
-	ZERO_STRUCTP(request);
-	ZERO_STRUCTP(response);
-	ZERO_STRUCT(tracker_cols);
+	if (select_stmt == NULL) {
+		request = talloc(ctx, struct wsp_request);
+		response = talloc(ctx, struct wsp_response);
+		ZERO_STRUCTP(request);
+		ZERO_STRUCTP(response);
+		ZERO_STRUCT(tracker_cols);
 
 
-	if (!get_blob_from_file(ctx, infile, &blob)) {
-		DBG_ERR("failed to process %s\n", infile);
-		result = 1;
-		goto out;
-	}
+		if (!get_blob_from_file(ctx, infile, &blob)) {
+			DBG_ERR("failed to process %s\n", infile);
+			result = 1;
+			goto out;
+		}
 
-	err = parse_blob(ctx, &blob, request, response, true);
-	if (err) {
-		DBG_ERR("failed to parse blob error %d\n", err);
-		result = 1;
-		goto out;
-	}
-	if (request->header.msg != CPMCREATEQUERY) {
-		DBG_ERR("wrong msg request type was expecting CPMCREATEQUERY, got %d\n", request->header.msg);
+		err = parse_blob(ctx, &blob, request, response, true);
+		if (err) {
+			DBG_ERR("failed to parse blob error %d\n", err);
+			result = 1;
+			goto out;
+		}
+		if (request->header.msg != CPMCREATEQUERY) {
+			DBG_ERR("wrong msg request type was expecting CPMCREATEQUERY, got %d\n", request->header.msg);
+		}
+
+	} else {
+		request = talloc_zero(ctx, struct wsp_request);
+		create_querysearch_request(ctx, request, select_stmt);
 	}
 
 	query = &request->message.cpmcreatequery;
