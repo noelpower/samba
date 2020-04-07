@@ -180,7 +180,7 @@ def main ():
 			extraPropsLimitedInfo = sys.argv[3]
 	else:
 		print ("usage: %s property-csv outfile optionalLimitedInfoProps"%(sys.argv[0]))
-		sys.exit(1)
+		sys.exit(0)
 	fileContents = io.open(inputFile,"rt",  encoding='utf8')
 	outputSource = io.open(outputFile,"wt", encoding='utf8')
 	parseCSV(fileContents, True)
