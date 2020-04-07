@@ -117,8 +117,6 @@ bld.SAMBA_PIDL_LIST('PIDL',
                     rap.idl
                     schannel.idl
                     smb2_lease_struct.idl
-                    wsp_data.idl
-                    wsp.idl
                     ''',
                     options='--header --ndr-parser',
                     output_dir='../gen_ndr')
@@ -131,6 +129,8 @@ bld.SAMBA_PIDL_LIST('PIDL',
                     ioctl.idl
                     nfs4acl.idl
                     quota.idl
+                    wsp_data.idl
+                    wsp.idl
                     ''',
                     options='--header --ndr-parser',
                     output_dir='../gen_ndr',
